@@ -1,0 +1,74 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "STM32: ST-Link (OpenOCD)",
+      "cwd": "${workspaceFolder}",
+      "executable": "${config:stm32.elfPath}",
+      "request": "launch",
+      "type": "cortex-debug",
+      "servertype": "openocd",
+      "serverpath": "${config:stm32.openocdPath}",
+      "gdbPath": "${config:stm32.gdbPath}",
+      "armToolchainPath": "${config:stm32.toolchainPath}",
+      "configFiles": [
+        "${config:stm32.openocd.stlinkInterface}",
+        "${config:stm32.openocd.target}"
+      ],
+      "device": "${config:stm32.device}",
+      "interface": "${config:stm32.interface}",
+      "runToEntryPoint": "main",
+      "preLaunchTask": "STM32: Build"
+    },
+    {
+      "name": "STM32: DAPLink (OpenOCD CMSIS-DAP)",
+      "cwd": "${workspaceFolder}",
+      "executable": "${config:stm32.elfPath}",
+      "request": "launch",
+      "type": "cortex-debug",
+      "servertype": "openocd",
+      "serverpath": "${config:stm32.openocdPath}",
+      "gdbPath": "${config:stm32.gdbPath}",
+      "armToolchainPath": "${config:stm32.toolchainPath}",
+      "configFiles": [
+        "${config:stm32.openocd.daplinkInterface}",
+        "${config:stm32.openocd.target}"
+      ],
+      "device": "${config:stm32.device}",
+      "interface": "${config:stm32.interface}",
+      "runToEntryPoint": "main",
+      "preLaunchTask": "STM32: Build"
+    },
+    {
+      "name": "STM32: DAPLink (pyOCD)",
+      "cwd": "${workspaceFolder}",
+      "executable": "${config:stm32.elfPath}",
+      "request": "launch",
+      "type": "cortex-debug",
+      "servertype": "pyocd",
+      "serverpath": "${config:stm32.pyocd.path}",
+      "gdbPath": "${config:stm32.gdbPath}",
+      "armToolchainPath": "${config:stm32.toolchainPath}",
+      "device": "${config:stm32.device}",
+      "targetId": "${config:stm32.pyocd.target}",
+      "interface": "${config:stm32.interface}",
+      "runToEntryPoint": "main",
+      "preLaunchTask": "STM32: Build"
+    },
+    {
+      "name": "STM32: J-Link",
+      "cwd": "${workspaceFolder}",
+      "executable": "${config:stm32.elfPath}",
+      "request": "launch",
+      "type": "cortex-debug",
+      "servertype": "jlink",
+      "serverpath": "${config:stm32.jlink.gdbServerPath}",
+      "gdbPath": "${config:stm32.gdbPath}",
+      "armToolchainPath": "${config:stm32.toolchainPath}",
+      "device": "${config:stm32.jlink.device}",
+      "interface": "${config:stm32.interface}",
+      "runToEntryPoint": "main",
+      "preLaunchTask": "STM32: Build"
+    }
+  ]
+}

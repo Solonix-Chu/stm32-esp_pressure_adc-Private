@@ -1,0 +1,8 @@
+# ST-LINK / STMicroelectronics
+SUBSYSTEM=="usb", ATTR{idVendor}=="0483", MODE="0660", GROUP="plugdev", TAG+="uaccess"
+
+# SEGGER J-Link
+SUBSYSTEM=="usb", ATTR{idVendor}=="1366", MODE="0660", GROUP="plugdev", TAG+="uaccess"
+
+# DAPLink / CMSIS-DAP (common mbed vendor ID)
+SUBSYSTEM=="usb", ATTR{idVendor}=="0d28", MODE="0660", GROUP="plugdev", TAG+="uaccess"

@@ -1,0 +1,105 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "STM32: Check Environment",
+      "type": "shell",
+      "command": "${workspaceFolder}/scripts/stm32/check-env.sh",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "STM32: Build",
+      "type": "shell",
+      "command": "${workspaceFolder}/scripts/stm32/build.sh",
+      "args": [
+        "${config:stm32.buildDir}"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": [
+        "$gcc"
+      ]
+    },
+    {
+      "label": "STM32: Flash (STM32CubeProgrammer)",
+      "type": "shell",
+      "command": "${workspaceFolder}/scripts/stm32/flash-cubeprog.sh",
+      "args": [
+        "${config:stm32.elfPath}",
+        "${config:stm32.flashAddress}",
+        "${config:stm32.cubeprog.port}"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "STM32: Flash (ST-Link/OpenOCD)",
+      "type": "shell",
+      "command": "${workspaceFolder}/scripts/stm32/flash-openocd.sh",
+      "args": [
+        "${config:stm32.openocd.stlinkInterface}",
+        "${config:stm32.openocd.target}",
+        "${config:stm32.elfPath}",
+        "${config:stm32.flashAddress}"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "STM32: Flash (DAPLink/OpenOCD)",
+      "type": "shell",
+      "command": "${workspaceFolder}/scripts/stm32/flash-openocd.sh",
+      "args": [
+        "${config:stm32.openocd.daplinkInterface}",
+        "${config:stm32.openocd.target}",
+        "${config:stm32.elfPath}",
+        "${config:stm32.flashAddress}"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "STM32: Flash (DAPLink/pyOCD)",
+      "type": "shell",
+      "command": "${workspaceFolder}/scripts/stm32/flash-pyocd.sh",
+      "args": [
+        "${config:stm32.pyocd.target}",
+        "${config:stm32.elfPath}"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "STM32: Flash (J-Link)",
+      "type": "shell",
+      "command": "${workspaceFolder}/scripts/stm32/flash-jlink.sh",
+      "args": [
+        "${config:stm32.elfPath}",
+        "${config:stm32.jlink.device}",
+        "${config:stm32.interface}",
+        "${config:stm32.jlink.speed}",
+        "${config:stm32.flashAddress}"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    }
+  ]
+}
