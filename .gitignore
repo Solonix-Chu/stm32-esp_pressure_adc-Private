@@ -1,0 +1,68 @@
+# Local Codex state
+.codex
+
+# Build directories
+build/
+cmake-build-*/
+Debug/
+Release/
+out/
+
+# CMake / Ninja generated files
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+CTestTestfile.cmake
+install_manifest.txt
+build.ninja
+.ninja_deps
+.ninja_log
+compile_commands.json
+Testing/
+
+# Compiler / linker outputs
+*.o
+*.obj
+*.d
+*.su
+*.a
+*.elf
+*.axf
+*.bin
+*.hex
+*.ihex
+*.srec
+*.map
+*.lst
+*.list
+*.disasm
+
+# Debugger / programmer temporary files
+JLink.log
+JLinkSettings.ini
+*.jlink
+
+# STM32CubeIDE / Eclipse local metadata
+.cproject
+.project
+.settings/
+.mxproject
+
+# Logs and temporary files
+*.log
+*.tmp
+*.bak
+*.swp
+*.swo
+*~
+__pycache__/
+
+# Local IDE state
+.idea/
+*.code-workspace
+*.launch
+.gdb_history
+
+# OS-generated files
+.DS_Store
+Thumbs.db
