@@ -1,0 +1,21 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "STM32F407 Debug (J-Link SWD/OpenOCD)",
+      "type": "cortex-debug",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "servertype": "openocd",
+      "device": "STM32F407xx",
+      "gdbPath": "/usr/bin/gdb-multiarch",
+      "objdumpPath": "/usr/bin/arm-none-eabi-objdump",
+      "executable": "${workspaceFolder}/build/Debug/stm_adc_pressure.elf",
+      "configFiles": [
+        ".vscode/openocd-jlink-swd.cfg"
+      ],
+      "runToEntryPoint": "main",
+      "preLaunchTask": "CMake: build Debug"
+    }
+  ]
+}
