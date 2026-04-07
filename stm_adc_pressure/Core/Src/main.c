@@ -46,6 +46,10 @@
 
 /* USER CODE BEGIN PV */
 
+volatile uint16_t adc1_dma_buffer[ADC1_DMA_BUFFER_SIZE];
+volatile uint8_t adc1_dma_half_complete = 0U;
+volatile uint8_t adc1_dma_full_complete = 0U;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -91,6 +95,11 @@ int main(void)
   MX_DMA_Init();
   MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
+
+  if (HAL_ADC_Start_DMA(&hadc1, (uint32_t *)adc1_dma_buffer, ADC1_DMA_BUFFER_SIZE) != HAL_OK)
+  {
+    Error_Handler();
+  }
 
   /* USER CODE END 2 */
 
@@ -152,6 +161,22 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+
+void HAL_ADC_ConvHalfCpltCallback(ADC_HandleTypeDef *hadc)
+{
+  if (hadc->Instance == ADC1)
+  {
+    adc1_dma_half_complete = 1U;
+  }
+}
+
+void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc)
+{
+  if (hadc->Instance == ADC1)
+  {
+    adc1_dma_full_complete = 1U;
+  }
+}
 
 /* USER CODE END 4 */
 

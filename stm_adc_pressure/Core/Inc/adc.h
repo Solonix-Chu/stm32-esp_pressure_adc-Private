@@ -36,11 +36,20 @@ extern ADC_HandleTypeDef hadc1;
 
 /* USER CODE BEGIN Private defines */
 
+#define ADC1_SCAN_CHANNEL_COUNT 6U
+#define ADC1_DMA_FRAME_COUNT    64U
+/* Buffer layout repeats as: CH1, CH2, CH3, CH4, CH5, CH6. */
+#define ADC1_DMA_BUFFER_SIZE    (ADC1_SCAN_CHANNEL_COUNT * ADC1_DMA_FRAME_COUNT)
+
 /* USER CODE END Private defines */
 
 void MX_ADC1_Init(void);
 
 /* USER CODE BEGIN Prototypes */
+
+extern volatile uint16_t adc1_dma_buffer[ADC1_DMA_BUFFER_SIZE];
+extern volatile uint8_t adc1_dma_half_complete;
+extern volatile uint8_t adc1_dma_full_complete;
 
 /* USER CODE END Prototypes */
 
