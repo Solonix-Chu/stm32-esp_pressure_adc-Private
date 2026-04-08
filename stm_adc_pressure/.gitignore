@@ -1,0 +1,19 @@
+# Local build directories
+/build/
+/build-arm/
+/cmake-build-*/
+
+# Local CMake user presets
+/CMakeUserPresets.json
+
+# IDE and editor temporary files
+.DS_Store
+*.swp
+*.swo
+*~
+
+# Python cache directories
+__pycache__/
+
+# Local tool/cache folders
+.cache/

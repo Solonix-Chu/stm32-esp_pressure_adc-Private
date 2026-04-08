@@ -57,18 +57,16 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define OLED_CS2_Pin GPIO_PIN_9
-#define OLED_CS2_GPIO_Port GPIOG
-#define OLED_CLK_Pin GPIO_PIN_10
-#define OLED_CLK_GPIO_Port GPIOG
-#define OLED_FSO_Pin GPIO_PIN_11
-#define OLED_FSO_GPIO_Port GPIOG
-#define OLED_DC_Pin GPIO_PIN_13
+#define OLED_SCLK_Pin GPIO_PIN_10
+#define OLED_SCLK_GPIO_Port GPIOG
+#define OLED_CS_Pin GPIO_PIN_11
+#define OLED_CS_GPIO_Port GPIOG
+#define OLED_RST_Pin GPIO_PIN_13
+#define OLED_RST_GPIO_Port GPIOG
+#define OLED_SDIN_Pin GPIO_PIN_14
+#define OLED_SDIN_GPIO_Port GPIOG
+#define OLED_DC_Pin GPIO_PIN_15
 #define OLED_DC_GPIO_Port GPIOG
-#define OLED_MOSI_Pin GPIO_PIN_14
-#define OLED_MOSI_GPIO_Port GPIOG
-#define OLED_CS1_Pin GPIO_PIN_15
-#define OLED_CS1_GPIO_Port GPIOG
 
 /* USER CODE BEGIN Private defines */
 

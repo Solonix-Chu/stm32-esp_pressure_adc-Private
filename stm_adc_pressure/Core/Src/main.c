@@ -20,11 +20,12 @@
 #include "main.h"
 #include "adc.h"
 #include "dma.h"
+#include "usart.h"
 #include "gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "oled.h"
+#include "app_main.h"
 
 /* USER CODE END Includes */
 
@@ -46,10 +47,6 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-
-volatile uint16_t adc1_dma_buffer[ADC1_DMA_BUFFER_SIZE];
-volatile uint8_t adc1_dma_half_complete = 0U;
-volatile uint8_t adc1_dma_full_complete = 0U;
 
 /* USER CODE END PV */
 
@@ -95,18 +92,10 @@ int main(void)
   MX_GPIO_Init();
   MX_DMA_Init();
   MX_ADC1_Init();
+  MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
 
-  OLED_Init();
-  OLED_DrawString(0U, 0U, "OLED READY");
-  OLED_DrawString(0U, 16U, "ADC1 SCAN DMA");
-  OLED_DrawString(0U, 32U, "PA1-PA6");
-  OLED_Update();
-
-  if (HAL_ADC_Start_DMA(&hadc1, (uint32_t *)adc1_dma_buffer, ADC1_DMA_BUFFER_SIZE) != HAL_OK)
-  {
-    Error_Handler();
-  }
+  App_Init();
 
   /* USER CODE END 2 */
 
@@ -117,6 +106,7 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+    App_Run();
   }
   /* USER CODE END 3 */
 }
@@ -168,22 +158,6 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
-
-void HAL_ADC_ConvHalfCpltCallback(ADC_HandleTypeDef *hadc)
-{
-  if (hadc->Instance == ADC1)
-  {
-    adc1_dma_half_complete = 1U;
-  }
-}
-
-void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc)
-{
-  if (hadc->Instance == ADC1)
-  {
-    adc1_dma_full_complete = 1U;
-  }
-}
 
 /* USER CODE END 4 */
 
