@@ -24,6 +24,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "oled.h"
 
 /* USER CODE END Includes */
 
@@ -95,6 +96,12 @@ int main(void)
   MX_DMA_Init();
   MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
+
+  OLED_Init();
+  OLED_DrawString(0U, 0U, "OLED READY");
+  OLED_DrawString(0U, 16U, "ADC1 SCAN DMA");
+  OLED_DrawString(0U, 32U, "PA1-PA6");
+  OLED_Update();
 
   if (HAL_ADC_Start_DMA(&hadc1, (uint32_t *)adc1_dma_buffer, ADC1_DMA_BUFFER_SIZE) != HAL_OK)
   {
