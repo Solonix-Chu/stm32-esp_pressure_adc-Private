@@ -27,5 +27,5 @@ direct_dependencies:
 - espressif/led_strip
 - espressif/mpu6050
 manifest_hash: 4d35b577541fd1e683f56066b74fe05c75ac80434da97b1ac0c6fe3f8229d056
-target: esp32c3
+target: esp32s3
 version: 2.0.0

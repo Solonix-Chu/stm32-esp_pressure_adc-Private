@@ -1,0 +1,13 @@
+{
+  "file": "adc_raw_00000.bin",
+  "created_unix": 170,
+  "boot_ms": 170407,
+  "protocol": "stm32_spi_link_v1",
+  "packet_bytes": 3112,
+  "header_bytes": 40,
+  "payload_bytes": 3072,
+  "sample_rate_hz": 51470,
+  "channel_count": 6,
+  "samples_per_channel": 256,
+  "bits_per_sample": 12
+}

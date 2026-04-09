@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>STM32 ADC Logger</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <main class="shell">
+    <section class="hero">
+      <div>
+        <p class="eyebrow">STM32 -> ESP32 SPI Link</p>
+        <h1>ADC capture, recording, and file control</h1>
+        <p class="lede">The ESP32 keeps draining STM32 packets continuously. Recording only toggles whether validated packets are persisted to flash.</p>
+      </div>
+      <div class="hero-panel">
+        <div class="status-pill" id="linkBadge">Link: starting</div>
+        <div class="status-pill" id="recordBadge">Recorder: idle</div>
+        <p id="wifiInfo">Wi-Fi: --</p>
+      </div>
+    </section>
+
+    <section class="grid">
+      <article class="card controls">
+        <div class="card-head">
+          <h2>Recorder</h2>
+          <p id="activeFile">Current file: --</p>
+        </div>
+        <div class="actions">
+          <button id="startBtn" class="btn btn-primary">Start Recording</button>
+          <button id="stopBtn" class="btn btn-secondary">Stop Recording</button>
+          <button id="refreshBtn" class="btn btn-ghost">Refresh</button>
+        </div>
+        <p id="message" class="message">Waiting for device state.</p>
+      </article>
+
+      <article class="card stats">
+        <div class="card-head">
+          <h2>Live Status</h2>
+          <p>Protocol and queue health</p>
+        </div>
+        <dl class="stats-grid">
+          <div><dt>Packets</dt><dd id="packetsReceived">--</dd></div>
+          <div><dt>Validated</dt><dd id="packetsValid">--</dd></div>
+          <div><dt>Written</dt><dd id="packetsWritten">--</dd></div>
+          <div><dt>Queue</dt><dd id="queueDepth">--</dd></div>
+          <div><dt>STM32 Drop</dt><dd id="stmDrop">--</dd></div>
+          <div><dt>Errors</dt><dd id="errorSummary">--</dd></div>
+          <div><dt>Last Seq</dt><dd id="lastSeq">--</dd></div>
+          <div><dt>Last Packet</dt><dd id="lastPacketAge">--</dd></div>
+          <div><dt>Storage</dt><dd id="storageUsage">--</dd></div>
+          <div><dt>Last Error</dt><dd id="lastError">--</dd></div>
+        </dl>
+      </article>
+    </section>
+
+    <section class="card files-card">
+      <div class="card-head">
+        <div>
+          <h2>Files</h2>
+          <p>Binary recordings and metadata stored on the ESP32 flash partition</p>
+        </div>
+        <div id="fileHint" class="hint">Downloads and deletes are blocked while recording is active.</div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Size</th>
+              <th>Modified</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="fileTable">
+            <tr><td colspan="4" class="empty">Loading file list...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>

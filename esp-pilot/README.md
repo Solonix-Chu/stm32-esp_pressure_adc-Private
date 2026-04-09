@@ -1,69 +1,67 @@
-| Supported Targets | ESP32 | ESP32-C2 | ESP32-C3 | ESP32-C6 | ESP32-H2 | ESP32-P4 | ESP32-S2 | ESP32-S3 |
-| ----------------- | ----- | -------- | -------- | -------- | -------- | -------- | -------- | -------- |
+# STM32 ADC Logger for ESP32-S3
 
-# Blink Example
+This project turns an `ESP32-S3` into the STM32-side capture endpoint described in `stm_adc_pressure/docs/esp32_spi_link_technical_guide.md`.
 
-(See the README.md file in the upper level 'examples' directory for more information about examples.)
+It does four things:
 
-This example demonstrates how to blink a LED by using the GPIO driver or using the [led_strip](https://components.espressif.com/component/espressif/led_strip) library if the LED is addressable e.g. [WS2812](https://cdn-shop.adafruit.com/datasheets/WS2812B.pdf). The `led_strip` library is installed via [component manager](main/idf_component.yml).
+1. Runs as SPI master and continuously drains the STM32 `3112-byte` ADC packets.
+2. Validates packet headers and `FNV-1a` checksums before accepting data.
+3. Records validated raw packets into a SPIFFS storage partition when recording is enabled.
+4. Hosts a web page over Wi-Fi AP mode for start/stop recording, file listing, download, and deletion.
 
-## How to Use Example
+## Default behavior
 
-Before project configuration and build, be sure to set the correct chip target using `idf.py set-target <chip_name>`.
+- Wi-Fi AP SSID: `stm32-adc-logger`
+- Wi-Fi AP password: `pilot1234`
+- Web UI: `http://192.168.4.1`
+- SPI mode: `0`
+- SPI clock: `6 MHz`
+- On-wire SPI transaction size: `3116 bytes`
+- Recorded protocol packet size: `3112 bytes`
+- Storage backend: internal flash `SPIFFS` partition on `16 MB` flash
 
-### Hardware Required
+## Default ESP32 pin mapping
 
-* A development board with normal LED or addressable LED on-board (e.g., ESP32-S3-DevKitC, ESP32-C6-DevKitC etc.)
-* A USB cable for Power supply and programming
+- `RDY`: `GPIO10`
+- `CS`: `GPIO7`
+- `SCK`: `GPIO4`
+- `MISO`: `GPIO5`
+- `MOSI`: `GPIO6`
 
-See [Development Boards](https://www.espressif.com/en/products/devkits) for more information about it.
+These defaults are only placeholders. Change them in `idf.py menuconfig` to match your board wiring.
 
-### Configure the Project
+## Build
 
-Open the project configuration menu (`idf.py menuconfig`).
-
-In the `Example Configuration` menu:
-
-* Select the LED type in the `Blink LED type` option.
-  * Use `GPIO` for regular LED
-  * Use `LED strip` for addressable LED
-* If the LED type is `LED strip`, select the backend peripheral
-  * `RMT` is only available for ESP targets with RMT peripheral supported
-  * `SPI` is available for all ESP targets
-* Set the GPIO number used for the signal in the `Blink GPIO number` option.
-* Set the blinking period in the `Blink period in ms` option.
-
-### Build and Flash
-
-Run `idf.py -p PORT flash monitor` to build, flash and monitor the project.
-
-(To exit the serial monitor, type ``Ctrl-]``.)
-
-See the [Getting Started Guide](https://docs.espressif.com/projects/esp-idf/en/latest/get-started/index.html) for full steps to configure and use ESP-IDF to build projects.
-
-## Example Output
-
-As you run the example, you will see the LED blinking, according to the previously defined period. For the addressable LED, you can also change the LED color by setting the `led_strip_set_pixel(led_strip, 0, 16, 16, 16);` (LED Strip, Pixel Number, Red, Green, Blue) with values from 0 to 255 in the [source file](main/blink_example_main.c).
-
-```text
-I (315) example: Example configured to blink addressable LED!
-I (325) example: Turning the LED OFF!
-I (1325) example: Turning the LED ON!
-I (2325) example: Turning the LED OFF!
-I (3325) example: Turning the LED ON!
-I (4325) example: Turning the LED OFF!
-I (5325) example: Turning the LED ON!
-I (6325) example: Turning the LED OFF!
-I (7325) example: Turning the LED ON!
-I (8325) example: Turning the LED OFF!
+```bash
+idf.py set-target esp32s3
+idf.py build
+idf.py -p PORT flash monitor
 ```
 
-Note: The color order could be different according to the LED model.
+## Notes
 
-The pixel number indicates the pixel position in the LED strip. For a single LED, use 0.
+- The ESP32 keeps reading STM32 packets even when recording is off, so the STM32 link does not stall just because the web recorder is idle.
+- Files are stored as raw binary packet streams plus a small `.json` metadata sidecar file.
+- The default partition layout now targets `ESP32-S3 + 16 MB flash`, with a `2 MB` factory app partition and about `13.9 MiB` reserved for SPIFFS recording storage.
 
-## Troubleshooting
+## Decode Captures
 
-* If the LED isn't blinking, check the GPIO or the LED type selection in the `Example Configuration` menu.
+Use `scripts/adc/decode_adc_capture.py` to turn a downloaded `.bin` capture into:
 
-For any technical queries, please open an [issue](https://github.com/espressif/esp-idf/issues) on GitHub. We will get back to you soon.
+- a frame-by-frame CSV
+- an SVG multi-channel waveform overview
+- a JSON summary with packet and gap statistics
+
+Example:
+
+```bash
+python3 scripts/adc/decode_adc_capture.py \
+  "adc_raw_00000.bin" \
+  --metadata "adc_raw_00000.json"
+```
+
+Optional:
+
+- `--with-millivolts`: add `*_mv` columns to the CSV and use mV labels in the waveform
+- `--no-svg`: export only CSV
+- `--no-csv`: export only waveform and summary

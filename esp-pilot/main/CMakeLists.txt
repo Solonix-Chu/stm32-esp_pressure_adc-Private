@@ -1,10 +1,25 @@
 idf_component_register(
     SRCS
         "app_main.c"
+        "adc_link_protocol.c"
+        "adc_logger.c"
+        "web_server.c"
+        "wifi_ap.c"
     INCLUDE_DIRS
         "."
+        "include"
+    EMBED_TXTFILES
+        "web/index.html"
+        "web/app.js"
+        "web/style.css"
     REQUIRES
+        driver
+        esp_event
+        esp_http_server
+        esp_netif
         esp_timer
+        esp_wifi
         freertos
-        pilot_imu
+        nvs_flash
+        spiffs
 )

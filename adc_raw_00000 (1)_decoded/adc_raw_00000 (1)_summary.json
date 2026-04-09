@@ -1,0 +1,23 @@
+{
+  "input_bin": "/home/csc/Develop/Pilot/hardware/stm32_esp32-pressure-adc/stm32-hardware/adc_raw_00000 (1).bin",
+  "metadata": "/home/csc/Develop/Pilot/hardware/stm32_esp32-pressure-adc/stm32-hardware/adc_raw_00000 (1).json",
+  "output_dir": "/home/csc/Develop/Pilot/hardware/stm32_esp32-pressure-adc/stm32-hardware/adc_raw_00000 (1)_decoded",
+  "packet_count": 568,
+  "valid_packets": 568,
+  "invalid_packets": 0,
+  "trailing_bytes": 0,
+  "frame_rows": 145408,
+  "duration_s": 2.8251020011657277,
+  "sequence_gap_events": 567,
+  "missing_packets_by_sequence": 2169,
+  "stm32_drop_first": 6347,
+  "stm32_drop_last": 8480,
+  "stm32_drop_delta": 2133,
+  "flags": {
+    "half": 295,
+    "full": 273
+  },
+  "csv_file": "/home/csc/Develop/Pilot/hardware/stm32_esp32-pressure-adc/stm32-hardware/adc_raw_00000 (1)_decoded/adc_raw_00000 (1)_samples.csv",
+  "svg_file": "/home/csc/Develop/Pilot/hardware/stm32_esp32-pressure-adc/stm32-hardware/adc_raw_00000 (1)_decoded/adc_raw_00000 (1)_waveform.svg",
+  "invalid_examples": []
+}

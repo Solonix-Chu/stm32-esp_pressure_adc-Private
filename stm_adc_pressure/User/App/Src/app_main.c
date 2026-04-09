@@ -84,10 +84,13 @@ typedef struct __attribute__((packed))
 #define APP_LINK_PACKET_HEADER_BYTES        ((uint16_t)sizeof(AppLinkPacketHeader))
 #define APP_LINK_PACKET_PAYLOAD_BYTES       (APP_ADC_HALF_BUFFER_SIZE * sizeof(uint16_t))
 #define APP_LINK_PACKET_TOTAL_BYTES         ((uint16_t)(APP_LINK_PACKET_HEADER_BYTES + APP_LINK_PACKET_PAYLOAD_BYTES))
+#define APP_LINK_PACKET_WIRE_SUFFIX_BYTES   4U
+#define APP_LINK_PACKET_WIRE_BYTES          ((uint16_t)(APP_LINK_PACKET_TOTAL_BYTES + APP_LINK_PACKET_WIRE_SUFFIX_BYTES))
 #define APP_LINK_PACKET_SAMPLES_PER_CHANNEL (APP_ADC_HALF_BUFFER_SIZE / APP_ADC_CHANNEL_COUNT)
 
 _Static_assert(sizeof(AppLinkPacketHeader) == 40U, "Unexpected link header size");
 _Static_assert(APP_LINK_PACKET_TOTAL_BYTES <= 0xFFFFU, "SPI packet too large");
+_Static_assert(APP_LINK_PACKET_WIRE_BYTES <= 0xFFFFU, "SPI wire packet too large");
 
 static osThreadId_t app_adc_task_handle = NULL;
 static osThreadId_t app_link_task_handle = NULL;
@@ -101,11 +104,13 @@ static uint32_t app_adc_sequence = 0U;
 static uint32_t app_link_dropped_packets = 0U;
 static uint32_t app_link_transfer_errors = 0U;
 static uint32_t app_link_packets_sent = 0U;
+static volatile uint32_t app_link_last_spi_error = HAL_SPI_ERROR_NONE;
+static volatile uint32_t app_link_last_start_status = HAL_OK;
 
 static uint16_t app_adc_latest_mv[APP_ADC_CHANNEL_COUNT];
 static uint16_t app_adc_history[APP_ADC_CHANNEL_COUNT][COMP_OLED_WIDTH];
-static uint8_t app_link_packet_pool[APP_LINK_PACKET_POOL_SIZE][APP_LINK_PACKET_TOTAL_BYTES];
-static uint8_t app_link_rx_buffer[APP_LINK_PACKET_TOTAL_BYTES];
+static uint8_t app_link_packet_pool[APP_LINK_PACKET_POOL_SIZE][APP_LINK_PACKET_WIRE_BYTES];
+static uint8_t app_link_rx_buffer[APP_LINK_PACKET_WIRE_BYTES];
 static uint16_t app_adc_history_count = 0U;
 static uint8_t app_adc_latest_valid = 0U;
 static uint8_t app_plot_page = 0U;
@@ -382,6 +387,7 @@ static void app_queue_link_packet(const volatile uint16_t *samples,
                                   uint16_t flags)
 {
   uint8_t packet_index;
+  uint8_t *wire_bytes;
   uint8_t *packet_bytes;
   AppLinkPacketHeader *header;
   uint16_t *payload_words;
@@ -398,7 +404,9 @@ static void app_queue_link_packet(const volatile uint16_t *samples,
     return;
   }
 
-  packet_bytes = app_link_packet_pool[packet_index];
+  wire_bytes = app_link_packet_pool[packet_index];
+  memset(wire_bytes, 0, APP_LINK_PACKET_WIRE_BYTES);
+  packet_bytes = wire_bytes;
   header = (AppLinkPacketHeader *)packet_bytes;
   payload_words = (uint16_t *)&packet_bytes[APP_LINK_PACKET_HEADER_BYTES];
 
@@ -531,6 +539,10 @@ static void app_log_stats(const AppAdcStats *stats)
                     (unsigned long)app_link_transfer_errors,
                     (unsigned long)((app_link_tx_queue != NULL) ? osMessageQueueGetCount(app_link_tx_queue) : 0U));
 
+  DrvUartLog_Printf("[MON] link spi status=%lu last_err=0x%08lX\r\n",
+                    (unsigned long)app_link_last_start_status,
+                    (unsigned long)app_link_last_spi_error);
+
   DrvUartLog_Printf("[MON] stack adc=%lu link=%lu disp=%lu mon=%lu words\r\n",
                     (unsigned long)uxTaskGetStackHighWaterMark((TaskHandle_t)app_adc_task_handle),
                     (unsigned long)uxTaskGetStackHighWaterMark((TaskHandle_t)app_link_task_handle),
@@ -613,8 +625,9 @@ static void app_link_task(void *argument)
 
   DrvEspLink_Init();
   DrvUartLog_Printf("[LINK] SPI2 slave PB12/PB13/PB14/PB15 RDY=PB5\r\n");
-  DrvUartLog_Printf("[LINK] pkt=%uB payload=%uB %luHz/ch\r\n",
+  DrvUartLog_Printf("[LINK] pkt=%uB wire=%uB payload=%uB %luHz/ch\r\n",
                     (unsigned int)APP_LINK_PACKET_TOTAL_BYTES,
+                    (unsigned int)APP_LINK_PACKET_WIRE_BYTES,
                     (unsigned int)APP_LINK_PACKET_PAYLOAD_BYTES,
                     (unsigned long)APP_ADC_CHANNEL_SAMPLE_RATE_HZ);
 
@@ -627,9 +640,12 @@ static void app_link_task(void *argument)
 
     (void)osThreadFlagsClear(APP_LINK_FLAG_TX_COMPLETE | APP_LINK_FLAG_TX_ERROR);
 
-    if (DrvEspLink_TransmitPacket(app_link_packet_pool[packet_index],
-                                  app_link_rx_buffer,
-                                  APP_LINK_PACKET_TOTAL_BYTES) != HAL_OK)
+    app_link_last_spi_error = HAL_SPI_ERROR_NONE;
+    app_link_last_start_status = (uint32_t)DrvEspLink_TransmitPacket(app_link_packet_pool[packet_index],
+                                                                     app_link_rx_buffer,
+                                                                     APP_LINK_PACKET_WIRE_BYTES);
+
+    if (app_link_last_start_status != (uint32_t)HAL_OK)
     {
       ++app_link_transfer_errors;
       DrvEspLink_Reset();
@@ -844,6 +860,7 @@ void HAL_SPI_ErrorCallback(SPI_HandleTypeDef *hspi)
 {
   if ((hspi->Instance == SPI2) && (app_link_task_handle != NULL))
   {
+    app_link_last_spi_error = HAL_SPI_GetError(hspi);
     DrvEspLink_SetReady(0U);
     (void)osThreadFlagsSet(app_link_task_handle, APP_LINK_FLAG_TX_ERROR);
   }

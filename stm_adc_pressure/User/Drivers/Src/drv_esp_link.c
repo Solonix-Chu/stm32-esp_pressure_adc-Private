@@ -24,9 +24,20 @@ HAL_StatusTypeDef DrvEspLink_TransmitPacket(uint8_t *tx_buffer, uint8_t *rx_buff
     return HAL_ERROR;
   }
 
-  DrvEspLink_SetReady(1U);
+  if (HAL_SPI_GetState(&hspi2) != HAL_SPI_STATE_READY)
+  {
+    (void)HAL_SPI_Abort(&hspi2);
+  }
+
+  __HAL_SPI_CLEAR_OVRFLAG(&hspi2);
+  __HAL_SPI_CLEAR_FREFLAG(&hspi2);
+
   status = HAL_SPI_TransmitReceive_DMA(&hspi2, tx_buffer, rx_buffer, length);
-  if (status != HAL_OK)
+  if (status == HAL_OK)
+  {
+    DrvEspLink_SetReady(1U);
+  }
+  else
   {
     DrvEspLink_SetReady(0U);
   }
