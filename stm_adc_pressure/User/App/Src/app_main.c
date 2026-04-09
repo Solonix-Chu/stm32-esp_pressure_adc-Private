@@ -3,8 +3,10 @@
 #include "adc.h"
 #include "cmsis_os2.h"
 #include "comp_oled.h"
+#include "drv_esp_link.h"
 #include "drv_keys.h"
 #include "drv_uart_log.h"
+#include "spi.h"
 
 #include "FreeRTOS.h"
 #include "task.h"
@@ -13,22 +15,30 @@
 #include <string.h>
 
 #define APP_ADC_CHANNEL_COUNT  6U
-#define APP_ADC_DMA_FRAME_COUNT 64U
+#define APP_ADC_DMA_FRAME_COUNT 512U
 #define APP_ADC_DMA_BUFFER_SIZE (APP_ADC_CHANNEL_COUNT * APP_ADC_DMA_FRAME_COUNT)
 #define APP_ADC_HALF_BUFFER_SIZE (APP_ADC_DMA_BUFFER_SIZE / 2U)
 
 #define APP_ADC_FLAG_HALF_COMPLETE (1UL << 0)
 #define APP_ADC_FLAG_FULL_COMPLETE (1UL << 1)
+#define APP_LINK_FLAG_TX_COMPLETE  (1UL << 2)
+#define APP_LINK_FLAG_TX_ERROR     (1UL << 3)
 
 #define APP_DISPLAY_TASK_PERIOD_MS 25U
 #define APP_PLOT_SAMPLE_PERIOD_MS  125U
 #define APP_MONITOR_PERIOD_MS      500U
 #define APP_BOOT_BANNER_HOLD_MS    1000U
+#define APP_LINK_TRANSFER_TIMEOUT_MS 100U
 
 #define APP_ADC_TASK_STACK_SIZE     (256U * 4U)
+#define APP_LINK_TASK_STACK_SIZE    (512U * 4U)
 #define APP_DISPLAY_TASK_STACK_SIZE (512U * 4U)
 
 #define APP_ADC_REFERENCE_MV      3300U
+#define APP_ADC_CLOCK_HZ          21000000U
+#define APP_ADC_CONVERSION_CYCLES 68U
+#define APP_ADC_TOTAL_SAMPLE_RATE_HZ   (APP_ADC_CLOCK_HZ / APP_ADC_CONVERSION_CYCLES)
+#define APP_ADC_CHANNEL_SAMPLE_RATE_HZ (APP_ADC_TOTAL_SAMPLE_RATE_HZ / APP_ADC_CHANNEL_COUNT)
 #define APP_PLOT_MV_PER_GRID      500U
 #define APP_PLOT_MV_FULL_SCALE    (APP_PLOT_MV_PER_GRID * 7U)
 #define APP_PLOT_SECONDS_PER_GRID 2U
@@ -37,6 +47,12 @@
 #define APP_PLOT_Y_TICK_PIXELS    4U
 #define APP_PLOT_PAGE_ALL         APP_ADC_CHANNEL_COUNT
 #define APP_PLOT_PAGE_COUNT       (APP_ADC_CHANNEL_COUNT + 1U)
+#define APP_LINK_PACKET_POOL_SIZE 4U
+#define APP_LINK_PROTOCOL_MAGIC   0x314B4E4CUL
+#define APP_LINK_PROTOCOL_VERSION 1U
+#define APP_LINK_SAMPLE_BITS      12U
+#define APP_LINK_PACKET_FLAG_HALF 0x0001U
+#define APP_LINK_PACKET_FLAG_FULL 0x0002U
 
 static volatile uint16_t app_adc_dma_buffer[APP_ADC_DMA_BUFFER_SIZE];
 
@@ -48,15 +64,48 @@ typedef struct
   uint16_t maximum[APP_ADC_CHANNEL_COUNT];
 } AppAdcStats;
 
+typedef struct __attribute__((packed))
+{
+  uint32_t magic;
+  uint16_t version;
+  uint16_t header_bytes;
+  uint32_t sequence;
+  uint32_t tick_ms;
+  uint32_t sample_rate_hz;
+  uint16_t channel_count;
+  uint16_t samples_per_channel;
+  uint16_t bits_per_sample;
+  uint16_t flags;
+  uint32_t dropped_packets;
+  uint32_t payload_bytes;
+  uint32_t checksum;
+} AppLinkPacketHeader;
+
+#define APP_LINK_PACKET_HEADER_BYTES        ((uint16_t)sizeof(AppLinkPacketHeader))
+#define APP_LINK_PACKET_PAYLOAD_BYTES       (APP_ADC_HALF_BUFFER_SIZE * sizeof(uint16_t))
+#define APP_LINK_PACKET_TOTAL_BYTES         ((uint16_t)(APP_LINK_PACKET_HEADER_BYTES + APP_LINK_PACKET_PAYLOAD_BYTES))
+#define APP_LINK_PACKET_SAMPLES_PER_CHANNEL (APP_ADC_HALF_BUFFER_SIZE / APP_ADC_CHANNEL_COUNT)
+
+_Static_assert(sizeof(AppLinkPacketHeader) == 40U, "Unexpected link header size");
+_Static_assert(APP_LINK_PACKET_TOTAL_BYTES <= 0xFFFFU, "SPI packet too large");
+
 static osThreadId_t app_adc_task_handle = NULL;
+static osThreadId_t app_link_task_handle = NULL;
 static osThreadId_t app_display_task_handle = NULL;
 static osThreadId_t app_monitor_task_handle = NULL;
 static osMessageQueueId_t app_display_queue = NULL;
+static osMessageQueueId_t app_link_free_queue = NULL;
+static osMessageQueueId_t app_link_tx_queue = NULL;
 static osMessageQueueId_t app_monitor_queue = NULL;
 static uint32_t app_adc_sequence = 0U;
+static uint32_t app_link_dropped_packets = 0U;
+static uint32_t app_link_transfer_errors = 0U;
+static uint32_t app_link_packets_sent = 0U;
 
 static uint16_t app_adc_latest_mv[APP_ADC_CHANNEL_COUNT];
 static uint16_t app_adc_history[APP_ADC_CHANNEL_COUNT][COMP_OLED_WIDTH];
+static uint8_t app_link_packet_pool[APP_LINK_PACKET_POOL_SIZE][APP_LINK_PACKET_TOTAL_BYTES];
+static uint8_t app_link_rx_buffer[APP_LINK_PACKET_TOTAL_BYTES];
 static uint16_t app_adc_history_count = 0U;
 static uint8_t app_adc_latest_valid = 0U;
 static uint8_t app_plot_page = 0U;
@@ -65,6 +114,12 @@ static const osThreadAttr_t app_adc_task_attributes = {
   .name = "adcTask",
   .stack_size = APP_ADC_TASK_STACK_SIZE,
   .priority = osPriorityHigh,
+};
+
+static const osThreadAttr_t app_link_task_attributes = {
+  .name = "linkTask",
+  .stack_size = APP_LINK_TASK_STACK_SIZE,
+  .priority = osPriorityAboveNormal,
 };
 
 static const osThreadAttr_t app_display_task_attributes = {
@@ -83,16 +138,31 @@ static const osMessageQueueAttr_t app_display_queue_attributes = {
   .name = "displayQueue",
 };
 
+static const osMessageQueueAttr_t app_link_free_queue_attributes = {
+  .name = "linkFreeQueue",
+};
+
+static const osMessageQueueAttr_t app_link_tx_queue_attributes = {
+  .name = "linkTxQueue",
+};
+
 static const osMessageQueueAttr_t app_monitor_queue_attributes = {
   .name = "monitorQueue",
 };
 
 static void app_adc_task(void *argument);
+static void app_link_task(void *argument);
 static void app_display_task(void *argument);
 static void app_monitor_task(void *argument);
 static void app_compute_adc_stats(const volatile uint16_t *samples,
                                   uint32_t sample_count,
                                   AppAdcStats *stats);
+static uint32_t app_link_checksum32(const uint8_t *data, uint32_t length);
+static void app_release_link_packet(uint8_t packet_index);
+static void app_queue_link_packet(const volatile uint16_t *samples,
+                                  uint32_t sample_count,
+                                  const AppAdcStats *stats,
+                                  uint16_t flags);
 static void app_publish_stats(const AppAdcStats *stats);
 static void app_display_boot_banner(const char *line1, const char *line2);
 static void app_log_stats(const AppAdcStats *stats);
@@ -280,6 +350,85 @@ static void app_log_plot_page(void)
   }
 }
 
+static uint32_t app_link_checksum32(const uint8_t *data, uint32_t length)
+{
+  uint32_t hash = 2166136261UL;
+
+  if (data == NULL)
+  {
+    return 0U;
+  }
+
+  for (uint32_t index = 0U; index < length; ++index)
+  {
+    hash ^= data[index];
+    hash *= 16777619UL;
+  }
+
+  return hash;
+}
+
+static void app_release_link_packet(uint8_t packet_index)
+{
+  if (app_link_free_queue != NULL)
+  {
+    (void)osMessageQueuePut(app_link_free_queue, &packet_index, 0U, 0U);
+  }
+}
+
+static void app_queue_link_packet(const volatile uint16_t *samples,
+                                  uint32_t sample_count,
+                                  const AppAdcStats *stats,
+                                  uint16_t flags)
+{
+  uint8_t packet_index;
+  uint8_t *packet_bytes;
+  AppLinkPacketHeader *header;
+  uint16_t *payload_words;
+
+  if ((samples == NULL) || (stats == NULL) || (sample_count != APP_ADC_HALF_BUFFER_SIZE) ||
+      (app_link_free_queue == NULL) || (app_link_tx_queue == NULL))
+  {
+    return;
+  }
+
+  if (osMessageQueueGet(app_link_free_queue, &packet_index, NULL, 0U) != osOK)
+  {
+    ++app_link_dropped_packets;
+    return;
+  }
+
+  packet_bytes = app_link_packet_pool[packet_index];
+  header = (AppLinkPacketHeader *)packet_bytes;
+  payload_words = (uint16_t *)&packet_bytes[APP_LINK_PACKET_HEADER_BYTES];
+
+  for (uint32_t sample_index = 0U; sample_index < sample_count; ++sample_index)
+  {
+    payload_words[sample_index] = (uint16_t)samples[sample_index];
+  }
+
+  header->magic = APP_LINK_PROTOCOL_MAGIC;
+  header->version = APP_LINK_PROTOCOL_VERSION;
+  header->header_bytes = APP_LINK_PACKET_HEADER_BYTES;
+  header->sequence = stats->sequence;
+  header->tick_ms = osKernelGetTickCount();
+  header->sample_rate_hz = APP_ADC_CHANNEL_SAMPLE_RATE_HZ;
+  header->channel_count = APP_ADC_CHANNEL_COUNT;
+  header->samples_per_channel = APP_LINK_PACKET_SAMPLES_PER_CHANNEL;
+  header->bits_per_sample = APP_LINK_SAMPLE_BITS;
+  header->flags = flags;
+  header->dropped_packets = app_link_dropped_packets;
+  header->payload_bytes = APP_LINK_PACKET_PAYLOAD_BYTES;
+  header->checksum = 0U;
+  header->checksum = app_link_checksum32(packet_bytes, APP_LINK_PACKET_TOTAL_BYTES);
+
+  if (osMessageQueuePut(app_link_tx_queue, &packet_index, 0U, 0U) != osOK)
+  {
+    ++app_link_dropped_packets;
+    app_release_link_packet(packet_index);
+  }
+}
+
 static void app_compute_adc_stats(const volatile uint16_t *samples,
                                   uint32_t sample_count,
                                   AppAdcStats *stats)
@@ -376,8 +525,15 @@ static void app_log_stats(const AppAdcStats *stats)
                     (unsigned int)stats->average[4],
                     (unsigned int)stats->average[5]);
 
-  DrvUartLog_Printf("[MON] stack adc=%lu disp=%lu mon=%lu words\r\n",
+  DrvUartLog_Printf("[MON] link sent=%lu drop=%lu err=%lu queued=%lu\r\n",
+                    (unsigned long)app_link_packets_sent,
+                    (unsigned long)app_link_dropped_packets,
+                    (unsigned long)app_link_transfer_errors,
+                    (unsigned long)((app_link_tx_queue != NULL) ? osMessageQueueGetCount(app_link_tx_queue) : 0U));
+
+  DrvUartLog_Printf("[MON] stack adc=%lu link=%lu disp=%lu mon=%lu words\r\n",
                     (unsigned long)uxTaskGetStackHighWaterMark((TaskHandle_t)app_adc_task_handle),
+                    (unsigned long)uxTaskGetStackHighWaterMark((TaskHandle_t)app_link_task_handle),
                     (unsigned long)uxTaskGetStackHighWaterMark((TaskHandle_t)app_display_task_handle),
                     (unsigned long)uxTaskGetStackHighWaterMark((TaskHandle_t)app_monitor_task_handle));
 }
@@ -428,6 +584,10 @@ static void app_adc_task(void *argument)
     {
       app_compute_adc_stats(app_adc_dma_buffer, APP_ADC_HALF_BUFFER_SIZE, &stats);
       app_publish_stats(&stats);
+      app_queue_link_packet(app_adc_dma_buffer,
+                            APP_ADC_HALF_BUFFER_SIZE,
+                            &stats,
+                            APP_LINK_PACKET_FLAG_HALF);
     }
 
     if ((flags & APP_ADC_FLAG_FULL_COMPLETE) != 0U)
@@ -436,7 +596,67 @@ static void app_adc_task(void *argument)
                             APP_ADC_HALF_BUFFER_SIZE,
                             &stats);
       app_publish_stats(&stats);
+      app_queue_link_packet(&app_adc_dma_buffer[APP_ADC_HALF_BUFFER_SIZE],
+                            APP_ADC_HALF_BUFFER_SIZE,
+                            &stats,
+                            APP_LINK_PACKET_FLAG_FULL);
     }
+  }
+}
+
+static void app_link_task(void *argument)
+{
+  uint8_t packet_index;
+  uint32_t flags;
+
+  (void)argument;
+
+  DrvEspLink_Init();
+  DrvUartLog_Printf("[LINK] SPI2 slave PB12/PB13/PB14/PB15 RDY=PB5\r\n");
+  DrvUartLog_Printf("[LINK] pkt=%uB payload=%uB %luHz/ch\r\n",
+                    (unsigned int)APP_LINK_PACKET_TOTAL_BYTES,
+                    (unsigned int)APP_LINK_PACKET_PAYLOAD_BYTES,
+                    (unsigned long)APP_ADC_CHANNEL_SAMPLE_RATE_HZ);
+
+  for (;;)
+  {
+    if (osMessageQueueGet(app_link_tx_queue, &packet_index, NULL, osWaitForever) != osOK)
+    {
+      continue;
+    }
+
+    (void)osThreadFlagsClear(APP_LINK_FLAG_TX_COMPLETE | APP_LINK_FLAG_TX_ERROR);
+
+    if (DrvEspLink_TransmitPacket(app_link_packet_pool[packet_index],
+                                  app_link_rx_buffer,
+                                  APP_LINK_PACKET_TOTAL_BYTES) != HAL_OK)
+    {
+      ++app_link_transfer_errors;
+      DrvEspLink_Reset();
+      app_release_link_packet(packet_index);
+      continue;
+    }
+
+    flags = osThreadFlagsWait(APP_LINK_FLAG_TX_COMPLETE | APP_LINK_FLAG_TX_ERROR,
+                              osFlagsWaitAny,
+                              APP_LINK_TRANSFER_TIMEOUT_MS);
+
+    if ((flags & osFlagsError) != 0U)
+    {
+      ++app_link_transfer_errors;
+      DrvEspLink_Reset();
+    }
+    else if ((flags & APP_LINK_FLAG_TX_ERROR) != 0U)
+    {
+      ++app_link_transfer_errors;
+      DrvEspLink_Reset();
+    }
+    else
+    {
+      ++app_link_packets_sent;
+    }
+
+    app_release_link_packet(packet_index);
   }
 }
 
@@ -463,7 +683,6 @@ static void app_display_task(void *argument)
     while (osMessageQueueGet(app_display_queue, &latest_stats, NULL, 0U) == osOK)
     {
       app_update_latest_mv(&latest_stats);
-      render_needed = 1U;
     }
 
     if ((key_events & DRV_KEY_EVENT_KEY2) != 0U)
@@ -496,14 +715,17 @@ void App_Init(void)
 {
   DrvUartLog_Init();
   DrvKeys_Init();
+  DrvEspLink_Init();
   DrvUartLog_Printf("\r\n[BOOT] app init\r\n");
   DrvUartLog_Printf("[UART] USART1 PB6/PB7 115200 8N1\r\n");
   DrvUartLog_Printf("[RTOS] CubeMX FreeRTOS CMSIS-V2 enabled\r\n");
-  DrvUartLog_Printf("[RTOS] adc=High display=BelowNormal monitor=Low slice=1ms\r\n");
+  DrvUartLog_Printf("[RTOS] adc=High link=AboveNormal display=BelowNormal monitor=Low slice=1ms\r\n");
   DrvUartLog_Printf("[RTOS] irq->thread flags, stats->single-slot queues\r\n");
   DrvUartLog_Printf("[KEY] KEY0=PE4 KEY1=PE3 KEY2=PE2\r\n");
   DrvUartLog_Printf("[OLED] plot 2S/GRID 500MV/GRID\r\n");
   DrvUartLog_Printf("[OLED] init demo-compatible\r\n");
+  DrvUartLog_Printf("[ADC] CH1..CH6=PA0/PA1/PA4/PA5/PA6/PA7 %luHz/ch\r\n",
+                    (unsigned long)APP_ADC_CHANNEL_SAMPLE_RATE_HZ);
   CompOled_Init();
   app_display_boot_banner("ADC CURVE", "KEY2 NEXT");
 }
@@ -513,21 +735,40 @@ void App_RtosInit(void)
   app_display_queue = osMessageQueueNew(1U,
                                         sizeof(AppAdcStats),
                                         &app_display_queue_attributes);
+  app_link_free_queue = osMessageQueueNew(APP_LINK_PACKET_POOL_SIZE,
+                                          sizeof(uint8_t),
+                                          &app_link_free_queue_attributes);
+  app_link_tx_queue = osMessageQueueNew(APP_LINK_PACKET_POOL_SIZE,
+                                        sizeof(uint8_t),
+                                        &app_link_tx_queue_attributes);
   app_monitor_queue = osMessageQueueNew(1U,
                                         sizeof(AppAdcStats),
                                         &app_monitor_queue_attributes);
 
   app_require_status((app_display_queue != NULL) ? 1U : 0U,
                      "[RTOS] display queue create failed");
+  app_require_status((app_link_free_queue != NULL) ? 1U : 0U,
+                     "[RTOS] link free queue create failed");
+  app_require_status((app_link_tx_queue != NULL) ? 1U : 0U,
+                     "[RTOS] link tx queue create failed");
   app_require_status((app_monitor_queue != NULL) ? 1U : 0U,
                      "[RTOS] monitor queue create failed");
 
+  for (uint8_t packet_index = 0U; packet_index < APP_LINK_PACKET_POOL_SIZE; ++packet_index)
+  {
+    app_require_status((osMessageQueuePut(app_link_free_queue, &packet_index, 0U, 0U) == osOK) ? 1U : 0U,
+                       "[RTOS] link free queue seed failed");
+  }
+
   app_adc_task_handle = osThreadNew(app_adc_task, NULL, &app_adc_task_attributes);
+  app_link_task_handle = osThreadNew(app_link_task, NULL, &app_link_task_attributes);
   app_display_task_handle = osThreadNew(app_display_task, NULL, &app_display_task_attributes);
   app_monitor_task_handle = osThreadNew(app_monitor_task, NULL, &app_monitor_task_attributes);
 
   app_require_status((app_adc_task_handle != NULL) ? 1U : 0U,
                      "[RTOS] adc task create failed");
+  app_require_status((app_link_task_handle != NULL) ? 1U : 0U,
+                     "[RTOS] link task create failed");
   app_require_status((app_display_task_handle != NULL) ? 1U : 0U,
                      "[RTOS] display task create failed");
   app_require_status((app_monitor_task_handle != NULL) ? 1U : 0U,
@@ -587,6 +828,24 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc)
   if ((hadc->Instance == ADC1) && (app_adc_task_handle != NULL))
   {
     (void)osThreadFlagsSet(app_adc_task_handle, APP_ADC_FLAG_FULL_COMPLETE);
+  }
+}
+
+void HAL_SPI_TxRxCpltCallback(SPI_HandleTypeDef *hspi)
+{
+  if ((hspi->Instance == SPI2) && (app_link_task_handle != NULL))
+  {
+    DrvEspLink_SetReady(0U);
+    (void)osThreadFlagsSet(app_link_task_handle, APP_LINK_FLAG_TX_COMPLETE);
+  }
+}
+
+void HAL_SPI_ErrorCallback(SPI_HandleTypeDef *hspi)
+{
+  if ((hspi->Instance == SPI2) && (app_link_task_handle != NULL))
+  {
+    DrvEspLink_SetReady(0U);
+    (void)osThreadFlagsSet(app_link_task_handle, APP_LINK_FLAG_TX_ERROR);
   }
 }
 
