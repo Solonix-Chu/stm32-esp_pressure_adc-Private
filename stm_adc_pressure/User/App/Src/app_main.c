@@ -786,6 +786,7 @@ void App_Init(void)
   DrvUartLog_Printf("[RTOS] adc=High link=AboveNormal display=BelowNormal monitor=Low slice=1ms\r\n");
   DrvUartLog_Printf("[RTOS] irq->thread flags, stats->single-slot queues\r\n");
   DrvUartLog_Printf("[KEY] KEY0=PE4 KEY1=PE3 KEY2=PE2\r\n");
+  DrvUartLog_Printf("[OLED] SPI3 SCK=PC10 MOSI=PC12 CS=PG11 RST=PG13 DC=PG15\r\n");
   DrvUartLog_Printf("[OLED] plot 2S/GRID 500MV/GRID\r\n");
   DrvUartLog_Printf("[OLED] init demo-compatible\r\n");
   DrvUartLog_Printf("[ADC] CH1..CH6=PA0/PA1/PA4/PA5/PA6/PA7 %luHz/ch\r\n",

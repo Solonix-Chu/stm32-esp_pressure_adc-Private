@@ -73,14 +73,14 @@ STM32 与 ESP32 的 SPI 数据链路对接说明见 [docs/esp32_spi_link_technic
 
 ### OLED
 
-板载 OLED 采用固定 `SSD1306 + 4 线软件 SPI`：
+板载 OLED 采用 `SSD1306 + SPI3 硬件 SPI`：
 
 | 功能 | MCU 引脚 |
 | --- | --- |
-| `OLED_SCLK` | `PG10` |
+| `OLED_SCLK` | `PC10` |
 | `OLED_CS` | `PG11` |
 | `OLED_RST` | `PG13` |
-| `OLED_SDIN` | `PG14` |
+| `OLED_SDIN` | `PC12` |
 | `OLED_DC` | `PG15` |
 
 ### 串口日志
@@ -183,6 +183,7 @@ cmake --build build-arm
 [UART] USART1 PB6/PB7 115200 8N1
 [RTOS] CubeMX FreeRTOS CMSIS-V2 enabled
 [KEY] KEY0=PE4 KEY1=PE3 KEY2=PE2
+[OLED] SPI3 SCK=PC10 MOSI=PC12 CS=PG11 RST=PG13 DC=PG15
 [OLED] plot 2S/GRID 500MV/GRID
 [LINK] SPI2 slave PB12/PB13/PB14/PB15 RDY=PB5
 [ADC] scan dma started, buffer=3072 samples

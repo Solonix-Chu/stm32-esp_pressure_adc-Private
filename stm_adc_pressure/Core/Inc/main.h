@@ -66,13 +66,13 @@ void Error_Handler(void);
 #define ESP_LINK_RDY_Pin GPIO_PIN_5
 #define ESP_LINK_RDY_GPIO_Port GPIOB
 #define OLED_SCLK_Pin GPIO_PIN_10
-#define OLED_SCLK_GPIO_Port GPIOG
+#define OLED_SCLK_GPIO_Port GPIOC
 #define OLED_CS_Pin GPIO_PIN_11
 #define OLED_CS_GPIO_Port GPIOG
 #define OLED_RST_Pin GPIO_PIN_13
 #define OLED_RST_GPIO_Port GPIOG
-#define OLED_SDIN_Pin GPIO_PIN_14
-#define OLED_SDIN_GPIO_Port GPIOG
+#define OLED_SDIN_Pin GPIO_PIN_12
+#define OLED_SDIN_GPIO_Port GPIOC
 #define OLED_DC_Pin GPIO_PIN_15
 #define OLED_DC_GPIO_Port GPIOG
 

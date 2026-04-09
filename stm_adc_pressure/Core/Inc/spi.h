@@ -27,8 +27,10 @@ extern "C" {
 #include "main.h"
 
 extern SPI_HandleTypeDef hspi2;
+extern SPI_HandleTypeDef hspi3;
 
 void MX_SPI2_Init(void);
+void MX_SPI3_Init(void);
 
 #ifdef __cplusplus
 }
