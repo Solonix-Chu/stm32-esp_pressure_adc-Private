@@ -164,6 +164,50 @@ void CompOled_SetPixel(uint8_t x, uint8_t y, uint8_t on)
   }
 }
 
+void CompOled_DrawLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint8_t on)
+{
+  int16_t dx;
+  int16_t sx;
+  int16_t dy;
+  int16_t sy;
+  int16_t err;
+
+  dx = (x0 < x1) ? (int16_t)(x1 - x0) : (int16_t)(x0 - x1);
+  sx = (x0 < x1) ? 1 : -1;
+  dy = (y0 < y1) ? (int16_t)(y0 - y1) : (int16_t)(y1 - y0);
+  sy = (y0 < y1) ? 1 : -1;
+  err = (int16_t)(dx + dy);
+
+  for (;;)
+  {
+    if ((x0 >= 0) && (y0 >= 0))
+    {
+      CompOled_SetPixel((uint8_t)x0, (uint8_t)y0, on);
+    }
+
+    if ((x0 == x1) && (y0 == y1))
+    {
+      break;
+    }
+
+    {
+      int16_t e2 = (int16_t)(err * 2);
+
+      if (e2 >= dy)
+      {
+        err = (int16_t)(err + dy);
+        x0 = (int16_t)(x0 + sx);
+      }
+
+      if (e2 <= dx)
+      {
+        err = (int16_t)(err + dx);
+        y0 = (int16_t)(y0 + sy);
+      }
+    }
+  }
+}
+
 void CompOled_DrawChar(uint8_t x, uint8_t y, char ch)
 {
   const uint8_t *glyph;

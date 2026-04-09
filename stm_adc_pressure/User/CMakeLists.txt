@@ -1,6 +1,7 @@
 add_library(user_layers STATIC)
 
 target_sources(user_layers PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/Drivers/Src/drv_keys.c
     ${CMAKE_CURRENT_SOURCE_DIR}/Drivers/Src/drv_oled_bus.c
     ${CMAKE_CURRENT_SOURCE_DIR}/Drivers/Src/drv_uart_log.c
     ${CMAKE_CURRENT_SOURCE_DIR}/Components/Src/comp_oled.c

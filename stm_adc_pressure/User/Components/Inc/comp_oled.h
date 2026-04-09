@@ -17,6 +17,7 @@ void CompOled_Clear(void);
 void CompOled_Update(void);
 void CompOled_AllPixelsOn(uint8_t enable);
 void CompOled_SetPixel(uint8_t x, uint8_t y, uint8_t on);
+void CompOled_DrawLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint8_t on);
 void CompOled_DrawChar(uint8_t x, uint8_t y, char ch);
 void CompOled_DrawString(uint8_t x, uint8_t y, const char *text);
 
