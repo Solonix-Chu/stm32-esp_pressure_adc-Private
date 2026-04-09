@@ -4,7 +4,7 @@
 
 #include "stm32f4xx_hal.h"
 
-#define DRV_KEYS_DEBOUNCE_MS 30U
+#define DRV_KEYS_DEBOUNCE_MS 15U
 
 typedef struct
 {

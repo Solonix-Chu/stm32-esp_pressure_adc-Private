@@ -25,6 +25,7 @@
 #define APP_LINK_FLAG_TX_ERROR     (1UL << 3)
 
 #define APP_DISPLAY_TASK_PERIOD_MS 25U
+#define APP_KEY_TASK_PERIOD_MS     10U
 #define APP_PLOT_SAMPLE_PERIOD_MS  125U
 #define APP_MONITOR_PERIOD_MS      500U
 #define APP_BOOT_BANNER_HOLD_MS    1000U
@@ -32,6 +33,7 @@
 
 #define APP_ADC_TASK_STACK_SIZE     (256U * 4U)
 #define APP_LINK_TASK_STACK_SIZE    (512U * 4U)
+#define APP_KEY_TASK_STACK_SIZE     (256U * 4U)
 #define APP_DISPLAY_TASK_STACK_SIZE (512U * 4U)
 
 #define APP_ADC_REFERENCE_MV      3300U
@@ -94,8 +96,10 @@ _Static_assert(APP_LINK_PACKET_WIRE_BYTES <= 0xFFFFU, "SPI wire packet too large
 
 static osThreadId_t app_adc_task_handle = NULL;
 static osThreadId_t app_link_task_handle = NULL;
+static osThreadId_t app_key_task_handle = NULL;
 static osThreadId_t app_display_task_handle = NULL;
 static osThreadId_t app_monitor_task_handle = NULL;
+static osMessageQueueId_t app_key_queue = NULL;
 static osMessageQueueId_t app_display_queue = NULL;
 static osMessageQueueId_t app_link_free_queue = NULL;
 static osMessageQueueId_t app_link_tx_queue = NULL;
@@ -127,6 +131,12 @@ static const osThreadAttr_t app_link_task_attributes = {
   .priority = osPriorityAboveNormal,
 };
 
+static const osThreadAttr_t app_key_task_attributes = {
+  .name = "keyTask",
+  .stack_size = APP_KEY_TASK_STACK_SIZE,
+  .priority = osPriorityLow,
+};
+
 static const osThreadAttr_t app_display_task_attributes = {
   .name = "displayTask",
   .stack_size = APP_DISPLAY_TASK_STACK_SIZE,
@@ -137,6 +147,10 @@ static const osThreadAttr_t app_monitor_task_attributes = {
   .name = "monitorTask",
   .stack_size = 256U * 4U,
   .priority = osPriorityLow,
+};
+
+static const osMessageQueueAttr_t app_key_queue_attributes = {
+  .name = "keyQueue",
 };
 
 static const osMessageQueueAttr_t app_display_queue_attributes = {
@@ -157,6 +171,7 @@ static const osMessageQueueAttr_t app_monitor_queue_attributes = {
 
 static void app_adc_task(void *argument);
 static void app_link_task(void *argument);
+static void app_key_task(void *argument);
 static void app_display_task(void *argument);
 static void app_monitor_task(void *argument);
 static void app_compute_adc_stats(const volatile uint16_t *samples,
@@ -676,9 +691,41 @@ static void app_link_task(void *argument)
   }
 }
 
+static void app_key_task(void *argument)
+{
+  uint32_t next_wakeup;
+
+  (void)argument;
+
+  DrvKeys_Init();
+  next_wakeup = osKernelGetTickCount();
+
+  for (;;)
+  {
+    uint32_t key_events = DrvKeys_PollEvents();
+
+    if (((key_events & DRV_KEY_EVENT_KEY2) != 0U) && (app_key_queue != NULL))
+    {
+      uint32_t key2_event = DRV_KEY_EVENT_KEY2;
+
+      if (osMessageQueuePut(app_key_queue, &key2_event, 0U, 0U) != osOK)
+      {
+        uint32_t discarded_event;
+
+        (void)osMessageQueueGet(app_key_queue, &discarded_event, NULL, 0U);
+        (void)osMessageQueuePut(app_key_queue, &key2_event, 0U, 0U);
+      }
+    }
+
+    next_wakeup += APP_KEY_TASK_PERIOD_MS;
+    (void)osDelayUntil(next_wakeup);
+  }
+}
+
 static void app_display_task(void *argument)
 {
   AppAdcStats latest_stats;
+  uint32_t key_events;
   uint32_t next_wakeup;
   uint32_t next_sample_tick;
   uint8_t render_needed = 1U;
@@ -686,14 +733,12 @@ static void app_display_task(void *argument)
   (void)argument;
 
   osDelay(APP_BOOT_BANNER_HOLD_MS);
-  DrvKeys_Init();
 
   next_wakeup = osKernelGetTickCount();
   next_sample_tick = next_wakeup + APP_PLOT_SAMPLE_PERIOD_MS;
 
   for (;;)
   {
-    uint32_t key_events = DrvKeys_PollEvents();
     uint32_t now;
 
     while (osMessageQueueGet(app_display_queue, &latest_stats, NULL, 0U) == osOK)
@@ -701,11 +746,14 @@ static void app_display_task(void *argument)
       app_update_latest_mv(&latest_stats);
     }
 
-    if ((key_events & DRV_KEY_EVENT_KEY2) != 0U)
+    while ((app_key_queue != NULL) && (osMessageQueueGet(app_key_queue, &key_events, NULL, 0U) == osOK))
     {
-      app_advance_plot_page();
-      app_log_plot_page();
-      render_needed = 1U;
+      if ((key_events & DRV_KEY_EVENT_KEY2) != 0U)
+      {
+        app_advance_plot_page();
+        app_log_plot_page();
+        render_needed = 1U;
+      }
     }
 
     now = osKernelGetTickCount();
@@ -748,6 +796,9 @@ void App_Init(void)
 
 void App_RtosInit(void)
 {
+  app_key_queue = osMessageQueueNew(2U,
+                                    sizeof(uint32_t),
+                                    &app_key_queue_attributes);
   app_display_queue = osMessageQueueNew(1U,
                                         sizeof(AppAdcStats),
                                         &app_display_queue_attributes);
@@ -761,6 +812,8 @@ void App_RtosInit(void)
                                         sizeof(AppAdcStats),
                                         &app_monitor_queue_attributes);
 
+  app_require_status((app_key_queue != NULL) ? 1U : 0U,
+                     "[RTOS] key queue create failed");
   app_require_status((app_display_queue != NULL) ? 1U : 0U,
                      "[RTOS] display queue create failed");
   app_require_status((app_link_free_queue != NULL) ? 1U : 0U,
@@ -778,6 +831,7 @@ void App_RtosInit(void)
 
   app_adc_task_handle = osThreadNew(app_adc_task, NULL, &app_adc_task_attributes);
   app_link_task_handle = osThreadNew(app_link_task, NULL, &app_link_task_attributes);
+  app_key_task_handle = osThreadNew(app_key_task, NULL, &app_key_task_attributes);
   app_display_task_handle = osThreadNew(app_display_task, NULL, &app_display_task_attributes);
   app_monitor_task_handle = osThreadNew(app_monitor_task, NULL, &app_monitor_task_attributes);
 
@@ -785,6 +839,8 @@ void App_RtosInit(void)
                      "[RTOS] adc task create failed");
   app_require_status((app_link_task_handle != NULL) ? 1U : 0U,
                      "[RTOS] link task create failed");
+  app_require_status((app_key_task_handle != NULL) ? 1U : 0U,
+                     "[RTOS] key task create failed");
   app_require_status((app_display_task_handle != NULL) ? 1U : 0U,
                      "[RTOS] display task create failed");
   app_require_status((app_monitor_task_handle != NULL) ? 1U : 0U,
