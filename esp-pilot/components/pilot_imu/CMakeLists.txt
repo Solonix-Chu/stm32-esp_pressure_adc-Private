@@ -1,0 +1,12 @@
+idf_component_register(
+    SRCS
+        "pilot_ahrs_mahony.c"
+        "pilot_imu.c"
+        "pilot_motion.c"
+    INCLUDE_DIRS
+        "include"
+    REQUIRES
+        freertos
+        esp_timer
+        mpu6050
+)

@@ -1,0 +1,166 @@
+menu "Example Configuration"
+
+    orsource "$IDF_PATH/examples/common_components/env_caps/$IDF_TARGET/Kconfig.env_caps"
+
+    choice BLINK_LED
+        prompt "Blink LED type"
+        default BLINK_LED_GPIO
+        help
+            Select the LED type. A normal level controlled LED or an addressable LED strip.
+            The default selection is based on the Espressif DevKit boards.
+            You can change the default selection according to your board.
+
+        config BLINK_LED_GPIO
+            bool "GPIO"
+        config BLINK_LED_STRIP
+            bool "LED strip"
+    endchoice
+
+    choice BLINK_LED_STRIP_BACKEND
+        depends on BLINK_LED_STRIP
+        prompt "LED strip backend peripheral"
+        default BLINK_LED_STRIP_BACKEND_RMT if SOC_RMT_SUPPORTED
+        default BLINK_LED_STRIP_BACKEND_SPI
+        help
+            Select the backend peripheral to drive the LED strip.
+
+        config BLINK_LED_STRIP_BACKEND_RMT
+            depends on SOC_RMT_SUPPORTED
+            bool "RMT"
+        config BLINK_LED_STRIP_BACKEND_SPI
+            bool "SPI"
+    endchoice
+
+    config BLINK_GPIO
+        int "Blink GPIO number"
+        range ENV_GPIO_RANGE_MIN ENV_GPIO_OUT_RANGE_MAX
+        default 8
+        help
+            GPIO number (IOxx) to blink on and off the LED.
+            Some GPIOs are used for other purposes (flash connections, etc.) and cannot be used to blink.
+
+    config BLINK_PERIOD
+        int "Blink period in ms"
+        range 10 3600000
+        default 1000
+        help
+            Define the blinking period in milliseconds.
+
+endmenu
+
+menu "Pilot IMU (MPU6050)"
+
+    config PILOT_I2C_PORT
+        int "I2C port"
+        range 0 1
+        default 0
+
+    config PILOT_I2C_SDA_GPIO
+        int "I2C SDA GPIO"
+        default 21 if IDF_TARGET_ESP32
+        default 8
+
+    config PILOT_I2C_SCL_GPIO
+        int "I2C SCL GPIO"
+        default 22 if IDF_TARGET_ESP32
+        default 9
+
+    config PILOT_I2C_INTERNAL_PULLUPS
+        bool "Enable internal pull-ups"
+        default y
+
+    config PILOT_I2C_CLK_HZ
+        int "I2C clock (Hz)"
+        range 10000 1000000
+        default 400000
+
+    config PILOT_MPU6050_ADDR
+        hex "MPU6050 I2C address"
+        default 0x68
+        help
+            0x68 when AD0 is LOW, 0x69 when AD0 is HIGH.
+
+    choice PILOT_MPU6050_ACCE_FS_CHOICE
+        prompt "Accelerometer full scale"
+        default PILOT_MPU6050_ACCE_FS_2G
+
+        config PILOT_MPU6050_ACCE_FS_2G
+            bool "+/-2g"
+        config PILOT_MPU6050_ACCE_FS_4G
+            bool "+/-4g"
+        config PILOT_MPU6050_ACCE_FS_8G
+            bool "+/-8g"
+        config PILOT_MPU6050_ACCE_FS_16G
+            bool "+/-16g"
+    endchoice
+
+    config PILOT_MPU6050_ACCE_FS
+        int
+        default 0 if PILOT_MPU6050_ACCE_FS_2G
+        default 1 if PILOT_MPU6050_ACCE_FS_4G
+        default 2 if PILOT_MPU6050_ACCE_FS_8G
+        default 3 if PILOT_MPU6050_ACCE_FS_16G
+
+    choice PILOT_MPU6050_GYRO_FS_CHOICE
+        prompt "Gyro full scale"
+        default PILOT_MPU6050_GYRO_FS_250DPS
+
+        config PILOT_MPU6050_GYRO_FS_250DPS
+            bool "+/-250 dps"
+        config PILOT_MPU6050_GYRO_FS_500DPS
+            bool "+/-500 dps"
+        config PILOT_MPU6050_GYRO_FS_1000DPS
+            bool "+/-1000 dps"
+        config PILOT_MPU6050_GYRO_FS_2000DPS
+            bool "+/-2000 dps"
+    endchoice
+
+    config PILOT_MPU6050_GYRO_FS
+        int
+        default 0 if PILOT_MPU6050_GYRO_FS_250DPS
+        default 1 if PILOT_MPU6050_GYRO_FS_500DPS
+        default 2 if PILOT_MPU6050_GYRO_FS_1000DPS
+        default 3 if PILOT_MPU6050_GYRO_FS_2000DPS
+
+    config PILOT_IMU_RATE_HZ
+        int "Output rate (Hz)"
+        range 1 400
+        default 100
+
+    config PILOT_IMU_CAL_SAMPLES
+        int "Calibration samples"
+        range 50 5000
+        default 800
+
+    config PILOT_IMU_CAL_SAMPLE_DELAY_MS
+        int "Delay between calibration samples (ms)"
+        range 0 50
+        default 2
+
+    config PILOT_IMU_ACCEL_OFFSET_ENABLE
+        bool "Enable accel offset (assumes Z-up, stationary)"
+        default n
+
+    config PILOT_IMU_ZRU_ENABLE
+        bool "Enable ZRU (runtime gyro bias update when stationary)"
+        default y
+
+    config PILOT_IMU_ZRU_ACCEL_MAG_THR_MG
+        int "ZRU accel magnitude threshold (mg)"
+        range 10 500
+        default 80
+        depends on PILOT_IMU_ZRU_ENABLE
+
+    config PILOT_IMU_ZRU_GYRO_THR_MDPS
+        int "ZRU gyro threshold (mdps)"
+        range 50 50000
+        default 2500
+        depends on PILOT_IMU_ZRU_ENABLE
+
+    config PILOT_IMU_ZRU_LEARNING_RATE_PERMILLE
+        int "ZRU learning rate (permille)"
+        range 0 50
+        default 5
+        depends on PILOT_IMU_ZRU_ENABLE
+
+endmenu

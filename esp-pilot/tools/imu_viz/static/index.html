@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>ESP IMU Viewer</title>
+    <link rel="stylesheet" href="/style.css?v=2" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <div class="dot"></div>
+        <div>
+          <div class="title">ESP IMU Viewer</div>
+          <div class="subtitle">实时解析 ESP 日志：四元数（quat）解算，欧拉角（euler_deg）展示</div>
+        </div>
+      </div>
+      <div class="status">
+        <div class="pill" id="connPill">DISCONNECTED</div>
+        <div class="meta">
+          <div>Last update: <span id="lastUpdate">-</span></div>
+          <div>Temp: <span id="tempC">-</span> °C</div>
+        </div>
+      </div>
+    </header>
+
+    <main class="grid">
+      <section class="card">
+        <div class="cardTitle">姿态（四元数 + 欧拉角）</div>
+        <div class="attitudeWrap">
+          <div class="scene">
+            <div class="cube" id="cube">
+              <div class="face front">FRONT</div>
+              <div class="face back">BACK</div>
+              <div class="face right">RIGHT</div>
+              <div class="face left">LEFT</div>
+              <div class="face top">TOP</div>
+              <div class="face bottom">BOTTOM</div>
+            </div>
+          </div>
+          <div class="angles">
+            <div class="angleRow">
+              <div class="k">Roll</div>
+              <div class="v"><span id="rollDeg">-</span>°</div>
+              <div class="bar"><div class="fill" id="rollBar"></div></div>
+            </div>
+            <div class="angleRow">
+              <div class="k">Pitch</div>
+              <div class="v"><span id="pitchDeg">-</span>°</div>
+              <div class="bar"><div class="fill" id="pitchBar"></div></div>
+            </div>
+            <div class="angleRow">
+              <div class="k">Yaw</div>
+              <div class="v"><span id="yawDeg">-</span>°</div>
+              <div class="bar"><div class="fill" id="yawBar"></div></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="cardTitle">连续角曲线</div>
+        <canvas id="plot" width="900" height="360"></canvas>
+        <div class="legend">
+          <div class="lg"><span class="sw r"></span>Turn Roll</div>
+          <div class="lg"><span class="sw p"></span>Turn Pitch</div>
+          <div class="lg"><span class="sw y"></span>Yaw Total</div>
+          <div class="lg muted">Y轴范围：自动缩放（支持超过 360°）</div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="cardTitle">世界坐标运动（nav）</div>
+        <div class="metrics">
+          <div class="metricRow">
+            <div class="k">lin_a_nav_g</div>
+            <div class="metricVal" id="linNavG">-</div>
+          </div>
+          <div class="metricRow">
+            <div class="k">gyro_nav_dps</div>
+            <div class="metricVal" id="gyroNavDps">-</div>
+          </div>
+          <div class="metricRow">
+            <div class="k">shake (rms/peak/Hz)</div>
+            <div class="metricVal" id="shakeMetrics">-</div>
+          </div>
+          <div class="metricRow">
+            <div class="k">rot (rms/peak/Hz)</div>
+            <div class="metricVal" id="rotMetrics">-</div>
+          </div>
+          <div class="metricHint">说明：nav 坐标系由四元数 body→nav 定义，重力沿 +Z（单位 g）。</div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="cardTitle">最近一条样本</div>
+        <pre class="mono" id="lastJson">-</pre>
+      </section>
+    </main>
+
+    <script src="/app.js?v=2"></script>
+  </body>
+</html>
