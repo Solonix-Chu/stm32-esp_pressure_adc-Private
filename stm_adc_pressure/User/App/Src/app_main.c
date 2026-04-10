@@ -7,6 +7,7 @@
 #include "drv_keys.h"
 #include "drv_uart_log.h"
 #include "spi.h"
+#include "tim.h"
 
 #include "FreeRTOS.h"
 #include "task.h"
@@ -37,10 +38,7 @@
 #define APP_DISPLAY_TASK_STACK_SIZE (512U * 4U)
 
 #define APP_ADC_REFERENCE_MV      3300U
-#define APP_ADC_CLOCK_HZ          21000000U
-#define APP_ADC_CONVERSION_CYCLES 68U
-#define APP_ADC_TOTAL_SAMPLE_RATE_HZ   (APP_ADC_CLOCK_HZ / APP_ADC_CONVERSION_CYCLES)
-#define APP_ADC_CHANNEL_SAMPLE_RATE_HZ (APP_ADC_TOTAL_SAMPLE_RATE_HZ / APP_ADC_CHANNEL_COUNT)
+#define APP_ADC_CHANNEL_SAMPLE_RATE_HZ 1000U
 #define APP_PLOT_MV_PER_GRID      500U
 #define APP_PLOT_MV_FULL_SCALE    (APP_PLOT_MV_PER_GRID * 7U)
 #define APP_PLOT_SECONDS_PER_GRID 2U
@@ -593,7 +591,14 @@ static void app_adc_task(void *argument)
     Error_Handler();
   }
 
-  DrvUartLog_Printf("[ADC] scan dma started, buffer=%u samples\r\n",
+  __HAL_TIM_SET_COUNTER(&htim2, 0U);
+  if (HAL_TIM_Base_Start(&htim2) != HAL_OK)
+  {
+    DrvUartLog_Printf("[ADC] tim2 start failed\r\n");
+    Error_Handler();
+  }
+
+  DrvUartLog_Printf("[ADC] scan dma armed, trigger=TIM2 1000Hz, buffer=%u samples\r\n",
                     (unsigned int)APP_ADC_DMA_BUFFER_SIZE);
 
   for (;;)
@@ -789,7 +794,8 @@ void App_Init(void)
   DrvUartLog_Printf("[OLED] SPI3 SCK=PC10 MOSI=PC12 CS=PG11 RST=PG13 DC=PG15\r\n");
   DrvUartLog_Printf("[OLED] plot 2S/GRID 500MV/GRID\r\n");
   DrvUartLog_Printf("[OLED] init demo-compatible\r\n");
-  DrvUartLog_Printf("[ADC] CH1..CH6=PA0/PA1/PA4/PA5/PA6/PA7 %luHz/ch\r\n",
+  DrvUartLog_Printf("[ADC] CH1..CH6=PA0/PA1/PA4/PA5/PA6/PA7 TIM2=%luHz %luHz/ch\r\n",
+                    (unsigned long)APP_ADC_CHANNEL_SAMPLE_RATE_HZ,
                     (unsigned long)APP_ADC_CHANNEL_SAMPLE_RATE_HZ);
   CompOled_Init();
   app_display_boot_banner("ADC CURVE", "KEY2 NEXT");

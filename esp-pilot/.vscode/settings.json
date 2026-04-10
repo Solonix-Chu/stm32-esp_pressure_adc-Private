@@ -3,7 +3,7 @@
   "idf.openOcdConfigs": [
     "board/esp32c3-ftdi.cfg"
   ],
-  "idf.port": "/dev/ttyACM1",
+  "idf.port": "/dev/ttyACM2",
   "idf.currentSetup": "/home/csc/esp/v5.4/esp-idf",
   "idf.customExtraVars": {
     "IDF_TARGET": "esp32c3"

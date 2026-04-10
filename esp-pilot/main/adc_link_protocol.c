@@ -41,7 +41,7 @@ adc_link_packet_status_t adc_link_validate_packet(const uint8_t *packet,
     if (header.header_bytes != ADC_LINK_HEADER_BYTES) {
         return ADC_LINK_PACKET_ERR_HEADER_BYTES;
     }
-    if (header.sample_rate_hz != ADC_LINK_SAMPLE_RATE_HZ) {
+    if (header.sample_rate_hz == 0U) {
         return ADC_LINK_PACKET_ERR_SAMPLE_RATE;
     }
     if (header.channel_count != ADC_LINK_CHANNEL_COUNT) {

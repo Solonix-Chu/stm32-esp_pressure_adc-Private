@@ -4,7 +4,7 @@
 
 当前工程使用：
 
-- `ADC1 + Scan + DMA Circular` 采集 6 路模拟量
+- `TIM2 + ADC1 + Scan + DMA Circular` 采集 6 路模拟量
 - `FreeRTOS(CMSIS V2)` 组织采集、显示和监控任务
 - 板载 `128x64 OLED` 显示实时电压曲线
 - `SPI2 + DMA` 向 `ESP32` 实时输出原始 ADC 数据包
@@ -17,7 +17,7 @@ STM32 与 ESP32 的 SPI 数据链路对接说明见 [docs/esp32_spi_link_technic
 
 ## 功能介绍
 
-- 6 路 ADC 连续扫描采样，DMA 循环搬运数据
+- 6 路 ADC 由 `TIM2` 以 `1 kHz` 触发整组扫描，DMA 循环搬运数据
 - OLED 显示单通道或全部通道叠加曲线
 - 曲线页使用 `左侧 Y 轴 + 底部 X 轴 + 短刻度`
 - 横坐标量程为 `2 秒/格`
@@ -31,7 +31,7 @@ STM32 与 ESP32 的 SPI 数据链路对接说明见 [docs/esp32_spi_link_technic
 - 页面顺序：`CH1 -> CH2 -> CH3 -> CH4 -> CH5 -> CH6 -> ALL -> CH1`
 - OLED 曲线历史点更新周期：`125 ms`
 - ADC 当前采样时间：`56 cycles`
-- 当前每路 ADC 有效采样频率约为 `51.5 kHz`
+- 当前每路 ADC 有效采样频率为 `1000 Hz`
 - SPI 原始数据包固定载荷为 `3072 bytes`
 
 ## 工程分层
@@ -149,7 +149,7 @@ cmake --build build-arm
 ### 4. 上电后的行为
 
 - OLED 启动后先显示 boot banner
-- ADC DMA 启动后开始连续采样
+- ADC DMA 启动后开始由 `TIM2` 按 `1 ms` 周期触发扫描
 - OLED 进入曲线显示页
 - 串口输出启动日志、RTOS 状态和 ADC 统计信息
 

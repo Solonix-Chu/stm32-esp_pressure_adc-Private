@@ -579,10 +579,12 @@ static esp_err_t adc_logger_next_recording_name(char *bin_name,
     return ESP_OK;
 }
 
-static void adc_logger_write_metadata(FILE *meta_file, const char *bin_name)
+static void adc_logger_write_metadata(FILE *meta_file, const char *bin_name, uint32_t sample_rate_hz)
 {
     const time_t now = time(NULL);
     const long long boot_ms = esp_timer_get_time() / 1000;
+    const uint32_t effective_sample_rate_hz =
+        (sample_rate_hz != 0U) ? sample_rate_hz : (uint32_t) ADC_LINK_SAMPLE_RATE_HZ;
 
     fprintf(meta_file,
             "{\n"
@@ -604,7 +606,7 @@ static void adc_logger_write_metadata(FILE *meta_file, const char *bin_name)
             (unsigned int) ADC_LINK_PACKET_BYTES,
             (unsigned int) ADC_LINK_HEADER_BYTES,
             (unsigned int) ADC_LINK_PAYLOAD_BYTES,
-            (unsigned int) ADC_LINK_SAMPLE_RATE_HZ,
+            (unsigned int) effective_sample_rate_hz,
             (unsigned int) ADC_LINK_CHANNEL_COUNT,
             (unsigned int) ADC_LINK_SAMPLES_PER_CHANNEL,
             (unsigned int) ADC_LINK_BITS_PER_SAMPLE);
@@ -679,6 +681,7 @@ esp_err_t adc_logger_start_recording(void)
     char meta_path[64] = {0};
     FILE *record_file = NULL;
     FILE *meta_file = NULL;
+    uint32_t sample_rate_hz = 0U;
 
     adc_logger_lock();
     if (!s_runtime.storage_ready) {
@@ -689,6 +692,7 @@ esp_err_t adc_logger_start_recording(void)
         adc_logger_unlock();
         return ESP_ERR_INVALID_STATE;
     }
+    sample_rate_hz = s_runtime.last_sample_rate_hz;
     adc_logger_unlock();
 
     ESP_RETURN_ON_ERROR(adc_logger_next_recording_name(bin_name, sizeof(bin_name), meta_name, sizeof(meta_name)),
@@ -708,7 +712,7 @@ esp_err_t adc_logger_start_recording(void)
         fclose(record_file);
         return ESP_FAIL;
     }
-    adc_logger_write_metadata(meta_file, bin_name);
+    adc_logger_write_metadata(meta_file, bin_name, sample_rate_hz);
     fclose(meta_file);
 
     adc_logger_lock();
