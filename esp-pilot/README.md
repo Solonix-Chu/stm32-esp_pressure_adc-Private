@@ -61,6 +61,7 @@ idf.py -p PORT flash monitor
 - The ESP32 keeps reading STM32 packets even when recording is off, so the STM32 link does not stall just because the web recorder is idle.
 - Files are stored as raw binary packet streams plus a small `.json` metadata sidecar file.
 - The default partition layout now targets `ESP32-S3 + 16 MB flash`, with a `2 MB` factory app partition and about `13.9 MiB` reserved for SPIFFS recording storage.
+- STM32 packet headers expose the live per-channel sampling rate in `sample_rate_hz`; on the current STM32 firmware, `KEY1` cycles that value from `100 Hz` to `2000 Hz` in `100 Hz` steps.
 
 ## Decode Captures
 

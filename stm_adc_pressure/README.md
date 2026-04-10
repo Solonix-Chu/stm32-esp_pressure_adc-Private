@@ -9,6 +9,7 @@
 - 板载 `128x64 OLED` 显示实时电压曲线
 - `SPI2 + DMA` 向 `ESP32` 实时输出原始 ADC 数据包
 - `USART1` 输出启动和运行日志
+- `KEY1` 切换 ADC 采样频率
 - `KEY2` 切换显示页面
 
 详细的 VS Code 开发与调试说明见 [docs/vscode_stm32_basic_guide.md](docs/vscode_stm32_basic_guide.md)。
@@ -17,13 +18,14 @@ STM32 与 ESP32 的 SPI 数据链路对接说明见 [docs/esp32_spi_link_technic
 
 ## 功能介绍
 
-- 6 路 ADC 由 `TIM2` 以 `100 Hz` 触发整组扫描，DMA 循环搬运数据
+- 6 路 ADC 由 `TIM2` 默认以 `100 Hz/ch` 触发整组扫描，DMA 循环搬运数据
 - OLED 显示单通道或全部通道叠加曲线
+- OLED 顶部显示当前页和当前采样频率
 - 曲线页使用 `左侧 Y 轴 + 底部 X 轴 + 短刻度`
 - 横坐标量程为 `2 秒/格`
 - 纵坐标量程为 `500 mV/格`
 - 串口周期输出 ADC 统计信息和任务运行状态
-- 按键去抖后触发页面切换
+- 按键去抖后触发采样率切换或页面切换
 - SPI 数据链路向 ESP32 输出固定长度原始采样包
 
 当前显示与采样行为：
@@ -31,7 +33,8 @@ STM32 与 ESP32 的 SPI 数据链路对接说明见 [docs/esp32_spi_link_technic
 - 页面顺序：`CH1 -> CH2 -> CH3 -> CH4 -> CH5 -> CH6 -> ALL -> CH1`
 - OLED 曲线历史点更新周期：`125 ms`
 - ADC 当前采样时间：`56 cycles`
-- 当前每路 ADC 有效采样频率为 `100 Hz`
+- 当前每路 ADC 默认有效采样频率为 `100 Hz`
+- `KEY1` 可按 `100 Hz` 步长在 `100 Hz ~ 2000 Hz` 间循环切换
 - SPI 原始数据包固定载荷为 `3072 bytes`
 
 ## 工程分层
@@ -124,7 +127,7 @@ STM32 与 ESP32 的 SPI 数据链路对接说明见 [docs/esp32_spi_link_technic
 | 按键 | MCU 引脚 | 当前用途 |
 | --- | --- | --- |
 | `KEY0` | `PE4` | 预留 |
-| `KEY1` | `PE3` | 预留 |
+| `KEY1` | `PE3` | 切换 ADC 采样频率（`100 ~ 2000 Hz/ch`，步长 `100 Hz`） |
 | `KEY2` | `PE2` | 切换 OLED 曲线页 |
 
 ## 简要使用说明
@@ -167,9 +170,16 @@ cmake --build build-arm
 ### 4. 上电后的行为
 
 - OLED 启动后先显示 boot banner
-- ADC DMA 启动后开始由 `TIM2` 按 `10 ms` 周期触发扫描
+- ADC DMA 启动后开始由 `TIM2` 按当前采样率触发扫描，默认 `100 Hz/ch`
 - OLED 进入曲线显示页
 - 串口输出启动日志、RTOS 状态和 ADC 统计信息
+
+`KEY1` 操作：
+
+- 每按一次将每路 ADC 采样频率加 `100 Hz`
+- 范围为 `100 Hz -> 200 Hz -> ... -> 2000 Hz -> 100 Hz`
+- OLED 顶部会同步显示当前 `Hz`
+- SPI 包头中的 `sample_rate_hz` 也会同步更新
 
 `KEY2` 操作：
 
@@ -188,6 +198,7 @@ cmake --build build-arm
 - 包格式为：
   - `40 bytes` 头部
   - `3072 bytes` 原始 ADC 载荷
+- `sample_rate_hz` 字段反映 STM32 当前运行中的每路采样频率
 - 原始载荷按当前扫描顺序交错排列：
   - `CH1, CH2, CH3, CH4, CH5, CH6` 循环
 - 每个采样值为 `uint16_t` 小端格式，实际有效位宽 `12 bit`
@@ -200,11 +211,12 @@ cmake --build build-arm
 [BOOT] app init
 [UART] USART1 PB6/PB7 115200 8N1
 [RTOS] CubeMX FreeRTOS CMSIS-V2 enabled
-[KEY] KEY0=PE4 KEY1=PE3 KEY2=PE2
+[KEY] KEY0=PE4 KEY1=PE3(rate) KEY2=PE2(page)
+[ADC] KEY1 cycles 100..2000Hz/ch step=100Hz
 [OLED] SPI3 SCK=PC10 MOSI=PC12 CS=PG11 RST=PG13 DC=PG15
 [OLED] plot 2S/GRID 500MV/GRID
 [LINK] SPI2 slave PB12/PB13/PB14/PB15 RDY=PB5
-[ADC] scan dma started, buffer=3072 samples
+[ADC] scan dma armed, trigger=TIM2 100Hz, buffer=3072 samples
 ```
 
 ## 目录说明

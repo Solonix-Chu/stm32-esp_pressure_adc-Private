@@ -37,22 +37,26 @@
 #define APP_KEY_TASK_STACK_SIZE     (256U * 4U)
 #define APP_DISPLAY_TASK_STACK_SIZE (512U * 4U)
 
-#define APP_ADC_REFERENCE_MV      3300U
-#define APP_ADC_CHANNEL_SAMPLE_RATE_HZ 100U
-#define APP_PLOT_MV_PER_GRID      500U
-#define APP_PLOT_MV_FULL_SCALE    (APP_PLOT_MV_PER_GRID * 7U)
-#define APP_PLOT_SECONDS_PER_GRID 2U
-#define APP_PLOT_GRID_X_PIXELS    16U
-#define APP_PLOT_X_TICK_PIXELS    4U
-#define APP_PLOT_Y_TICK_PIXELS    4U
-#define APP_PLOT_PAGE_ALL         APP_ADC_CHANNEL_COUNT
-#define APP_PLOT_PAGE_COUNT       (APP_ADC_CHANNEL_COUNT + 1U)
-#define APP_LINK_PACKET_POOL_SIZE 4U
-#define APP_LINK_PROTOCOL_MAGIC   0x314B4E4CUL
-#define APP_LINK_PROTOCOL_VERSION 1U
-#define APP_LINK_SAMPLE_BITS      12U
-#define APP_LINK_PACKET_FLAG_HALF 0x0001U
-#define APP_LINK_PACKET_FLAG_FULL 0x0002U
+#define APP_ADC_REFERENCE_MV           3300U
+#define APP_ADC_SAMPLE_RATE_MIN_HZ     100U
+#define APP_ADC_SAMPLE_RATE_MAX_HZ     2000U
+#define APP_ADC_SAMPLE_RATE_STEP_HZ    100U
+#define APP_ADC_SAMPLE_RATE_DEFAULT_HZ APP_ADC_SAMPLE_RATE_MIN_HZ
+#define APP_TIM2_TRIGGER_CLOCK_HZ      1000000U
+#define APP_PLOT_MV_PER_GRID           500U
+#define APP_PLOT_MV_FULL_SCALE         (APP_PLOT_MV_PER_GRID * 7U)
+#define APP_PLOT_SECONDS_PER_GRID      2U
+#define APP_PLOT_GRID_X_PIXELS         16U
+#define APP_PLOT_X_TICK_PIXELS         4U
+#define APP_PLOT_Y_TICK_PIXELS         4U
+#define APP_PLOT_PAGE_ALL              APP_ADC_CHANNEL_COUNT
+#define APP_PLOT_PAGE_COUNT            (APP_ADC_CHANNEL_COUNT + 1U)
+#define APP_LINK_PACKET_POOL_SIZE      4U
+#define APP_LINK_PROTOCOL_MAGIC        0x314B4E4CUL
+#define APP_LINK_PROTOCOL_VERSION      1U
+#define APP_LINK_SAMPLE_BITS           12U
+#define APP_LINK_PACKET_FLAG_HALF      0x0001U
+#define APP_LINK_PACKET_FLAG_FULL      0x0002U
 
 static volatile uint16_t app_adc_dma_buffer[APP_ADC_DMA_BUFFER_SIZE];
 
@@ -116,6 +120,7 @@ static uint8_t app_link_rx_buffer[APP_LINK_PACKET_WIRE_BYTES];
 static uint16_t app_adc_history_count = 0U;
 static uint8_t app_adc_latest_valid = 0U;
 static uint8_t app_plot_page = 0U;
+static volatile uint32_t app_adc_channel_sample_rate_hz = APP_ADC_SAMPLE_RATE_DEFAULT_HZ;
 
 static const osThreadAttr_t app_adc_task_attributes = {
   .name = "adcTask",
@@ -194,6 +199,79 @@ static void app_draw_channel_trace(uint32_t channel_index);
 static void app_render_plot_page(void);
 static void app_advance_plot_page(void);
 static void app_log_plot_page(void);
+static uint32_t app_get_adc_sample_rate_hz(void);
+static uint32_t app_next_adc_sample_rate(uint32_t sample_rate_hz);
+static void app_apply_adc_sample_rate(uint32_t sample_rate_hz);
+
+static uint32_t app_get_adc_sample_rate_hz(void)
+{
+  return app_adc_channel_sample_rate_hz;
+}
+
+static uint32_t app_next_adc_sample_rate(uint32_t sample_rate_hz)
+{
+  uint32_t normalized_rate = sample_rate_hz;
+
+  if (normalized_rate < APP_ADC_SAMPLE_RATE_MIN_HZ)
+  {
+    normalized_rate = APP_ADC_SAMPLE_RATE_MIN_HZ;
+  }
+  else if (normalized_rate > APP_ADC_SAMPLE_RATE_MAX_HZ)
+  {
+    normalized_rate = APP_ADC_SAMPLE_RATE_MAX_HZ;
+  }
+
+  if (normalized_rate >= APP_ADC_SAMPLE_RATE_MAX_HZ)
+  {
+    return APP_ADC_SAMPLE_RATE_MIN_HZ;
+  }
+
+  normalized_rate += APP_ADC_SAMPLE_RATE_STEP_HZ;
+  if (normalized_rate > APP_ADC_SAMPLE_RATE_MAX_HZ)
+  {
+    normalized_rate = APP_ADC_SAMPLE_RATE_MIN_HZ;
+  }
+
+  return normalized_rate;
+}
+
+static void app_apply_adc_sample_rate(uint32_t sample_rate_hz)
+{
+  uint32_t normalized_rate = sample_rate_hz;
+  uint32_t timer_enabled;
+  uint32_t autoreload;
+
+  if (normalized_rate < APP_ADC_SAMPLE_RATE_MIN_HZ)
+  {
+    normalized_rate = APP_ADC_SAMPLE_RATE_MIN_HZ;
+  }
+  else if (normalized_rate > APP_ADC_SAMPLE_RATE_MAX_HZ)
+  {
+    normalized_rate = APP_ADC_SAMPLE_RATE_MAX_HZ;
+  }
+
+  autoreload = (APP_TIM2_TRIGGER_CLOCK_HZ / normalized_rate) - 1U;
+
+  taskENTER_CRITICAL();
+  timer_enabled = ((htim2.Instance->CR1 & TIM_CR1_CEN) != 0U) ? 1U : 0U;
+
+  if (timer_enabled != 0U)
+  {
+    __HAL_TIM_DISABLE(&htim2);
+  }
+
+  __HAL_TIM_SET_AUTORELOAD(&htim2, autoreload);
+  __HAL_TIM_SET_COUNTER(&htim2, 0U);
+  htim2.Init.Period = autoreload;
+  app_adc_channel_sample_rate_hz = normalized_rate;
+
+  if (timer_enabled != 0U)
+  {
+    __HAL_TIM_ENABLE(&htim2);
+  }
+
+  taskEXIT_CRITICAL();
+}
 
 static void app_display_boot_banner(const char *line1, const char *line2)
 {
@@ -322,6 +400,7 @@ static void app_draw_channel_trace(uint32_t channel_index)
 static void app_render_plot_page(void)
 {
   char header[22];
+  uint32_t sample_rate_hz = app_get_adc_sample_rate_hz();
 
   CompOled_Clear();
   app_draw_plot_grid();
@@ -333,9 +412,10 @@ static void app_render_plot_page(void)
     app_draw_channel_trace(channel);
     (void)snprintf(header,
                    sizeof(header),
-                   "CH%lu %4uMV 2S/500M",
+                   "CH%lu %4uMV %4luHZ",
                    (unsigned long)(channel + 1U),
-                   (unsigned int)app_adc_latest_mv[channel]);
+                   (unsigned int)app_adc_latest_mv[channel],
+                   (unsigned long)sample_rate_hz);
   }
   else
   {
@@ -344,7 +424,7 @@ static void app_render_plot_page(void)
       app_draw_channel_trace(channel);
     }
 
-    (void)snprintf(header, sizeof(header), "ALL 1-6 2S/500M");
+    (void)snprintf(header, sizeof(header), "ALL 1-6 %4luHZ", (unsigned long)sample_rate_hz);
   }
 
   CompOled_DrawString(0U, 0U, header);
@@ -433,7 +513,7 @@ static void app_queue_link_packet(const volatile uint16_t *samples,
   header->header_bytes = APP_LINK_PACKET_HEADER_BYTES;
   header->sequence = stats->sequence;
   header->tick_ms = osKernelGetTickCount();
-  header->sample_rate_hz = APP_ADC_CHANNEL_SAMPLE_RATE_HZ;
+  header->sample_rate_hz = app_get_adc_sample_rate_hz();
   header->channel_count = APP_ADC_CHANNEL_COUNT;
   header->samples_per_channel = APP_LINK_PACKET_SAMPLES_PER_CHANNEL;
   header->bits_per_sample = APP_LINK_SAMPLE_BITS;
@@ -591,6 +671,7 @@ static void app_adc_task(void *argument)
     Error_Handler();
   }
 
+  app_apply_adc_sample_rate(app_get_adc_sample_rate_hz());
   __HAL_TIM_SET_COUNTER(&htim2, 0U);
   if (HAL_TIM_Base_Start(&htim2) != HAL_OK)
   {
@@ -599,7 +680,7 @@ static void app_adc_task(void *argument)
   }
 
   DrvUartLog_Printf("[ADC] scan dma armed, trigger=TIM2 %luHz, buffer=%u samples\r\n",
-                    (unsigned long)APP_ADC_CHANNEL_SAMPLE_RATE_HZ,
+                    (unsigned long)app_get_adc_sample_rate_hz(),
                     (unsigned int)APP_ADC_DMA_BUFFER_SIZE);
 
   for (;;)
@@ -650,7 +731,7 @@ static void app_link_task(void *argument)
                     (unsigned int)APP_LINK_PACKET_TOTAL_BYTES,
                     (unsigned int)APP_LINK_PACKET_WIRE_BYTES,
                     (unsigned int)APP_LINK_PACKET_PAYLOAD_BYTES,
-                    (unsigned long)APP_ADC_CHANNEL_SAMPLE_RATE_HZ);
+                    (unsigned long)app_get_adc_sample_rate_hz());
 
   for (;;)
   {
@@ -710,16 +791,16 @@ static void app_key_task(void *argument)
   {
     uint32_t key_events = DrvKeys_PollEvents();
 
-    if (((key_events & DRV_KEY_EVENT_KEY2) != 0U) && (app_key_queue != NULL))
-    {
-      uint32_t key2_event = DRV_KEY_EVENT_KEY2;
+    key_events &= (DRV_KEY_EVENT_KEY1 | DRV_KEY_EVENT_KEY2);
 
-      if (osMessageQueuePut(app_key_queue, &key2_event, 0U, 0U) != osOK)
+    if ((key_events != 0U) && (app_key_queue != NULL))
+    {
+      if (osMessageQueuePut(app_key_queue, &key_events, 0U, 0U) != osOK)
       {
         uint32_t discarded_event;
 
         (void)osMessageQueueGet(app_key_queue, &discarded_event, NULL, 0U);
-        (void)osMessageQueuePut(app_key_queue, &key2_event, 0U, 0U);
+        (void)osMessageQueuePut(app_key_queue, &key_events, 0U, 0U);
       }
     }
 
@@ -754,6 +835,15 @@ static void app_display_task(void *argument)
 
     while ((app_key_queue != NULL) && (osMessageQueueGet(app_key_queue, &key_events, NULL, 0U) == osOK))
     {
+      if ((key_events & DRV_KEY_EVENT_KEY1) != 0U)
+      {
+        uint32_t next_rate = app_next_adc_sample_rate(app_get_adc_sample_rate_hz());
+
+        app_apply_adc_sample_rate(next_rate);
+        DrvUartLog_Printf("[KEY] rate=%luHz/ch\r\n", (unsigned long)next_rate);
+        render_needed = 1U;
+      }
+
       if ((key_events & DRV_KEY_EVENT_KEY2) != 0U)
       {
         app_advance_plot_page();
@@ -791,15 +881,19 @@ void App_Init(void)
   DrvUartLog_Printf("[RTOS] CubeMX FreeRTOS CMSIS-V2 enabled\r\n");
   DrvUartLog_Printf("[RTOS] adc=High link=AboveNormal display=BelowNormal monitor=Low slice=1ms\r\n");
   DrvUartLog_Printf("[RTOS] irq->thread flags, stats->single-slot queues\r\n");
-  DrvUartLog_Printf("[KEY] KEY0=PE4 KEY1=PE3 KEY2=PE2\r\n");
+  DrvUartLog_Printf("[KEY] KEY0=PE4 KEY1=PE3(rate) KEY2=PE2(page)\r\n");
   DrvUartLog_Printf("[OLED] SPI3 SCK=PC10 MOSI=PC12 CS=PG11 RST=PG13 DC=PG15\r\n");
   DrvUartLog_Printf("[OLED] plot 2S/GRID 500MV/GRID\r\n");
   DrvUartLog_Printf("[OLED] init demo-compatible\r\n");
   DrvUartLog_Printf("[ADC] CH1..CH6=PA0/PA1/PA4/PA5/PA6/PA7 TIM2=%luHz %luHz/ch\r\n",
-                    (unsigned long)APP_ADC_CHANNEL_SAMPLE_RATE_HZ,
-                    (unsigned long)APP_ADC_CHANNEL_SAMPLE_RATE_HZ);
+                    (unsigned long)app_get_adc_sample_rate_hz(),
+                    (unsigned long)app_get_adc_sample_rate_hz());
+  DrvUartLog_Printf("[ADC] KEY1 cycles %lu..%luHz/ch step=%luHz\r\n",
+                    (unsigned long)APP_ADC_SAMPLE_RATE_MIN_HZ,
+                    (unsigned long)APP_ADC_SAMPLE_RATE_MAX_HZ,
+                    (unsigned long)APP_ADC_SAMPLE_RATE_STEP_HZ);
   CompOled_Init();
-  app_display_boot_banner("ADC CURVE", "KEY2 NEXT");
+  app_display_boot_banner("ADC CURVE", "K1 RATE K2 NEXT");
 }
 
 void App_RtosInit(void)
