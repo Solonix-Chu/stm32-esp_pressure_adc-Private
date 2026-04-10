@@ -102,6 +102,23 @@ STM32 与 ESP32 的 SPI 数据链路对接说明见 [docs/esp32_spi_link_technic
 | `SPI2_MISO` | `PB14` | STM32 输出数据到 ESP32 |
 | `SPI2_MOSI` | `PB15` | ESP32 发送占位字节到 STM32 |
 
+推荐按当前 `esp-pilot` 默认 GPIO 做如下接线：
+
+| STM32 引脚 | ESP32-S3 引脚 | 信号 |
+| --- | --- | --- |
+| `PB5` | `GPIO10` | `RDY` |
+| `PB12` | `GPIO7` | `CS/NSS` |
+| `PB13` | `GPIO4` | `SCK` |
+| `PB14` | `GPIO5` | `MISO` |
+| `PB15` | `GPIO6` | `MOSI` |
+| `GND` | `GND` | 公共地 |
+
+说明：
+
+- `STM32 PB14(MISO)` 要接到 `ESP32 GPIO5(MISO)`
+- `STM32 PB15(MOSI)` 要接到 `ESP32 GPIO6(MOSI)`
+- 双方必须共地，且都使用 `3.3V` 逻辑电平
+
 ### 用户按键
 
 | 按键 | MCU 引脚 | 当前用途 |
@@ -118,6 +135,7 @@ STM32 与 ESP32 的 SPI 数据链路对接说明见 [docs/esp32_spi_link_technic
 - 将待测模拟信号接到 `PA0/PA1/PA4/PA5/PA6/PA7`
 - 若需要查看日志，连接 `USART1` 到 USB 转串口
 - 若需要接 `ESP32`，按 `PB5/PB12/PB13/PB14/PB15 + GND` 连接 SPI
+  - 对应 `ESP32-S3` 默认引脚为 `GPIO10/GPIO7/GPIO4/GPIO5/GPIO6 + GND`
 - 若需要烧录调试，连接 `J-Link + SWD`
 
 建议：

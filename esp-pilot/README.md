@@ -30,6 +30,24 @@ It does four things:
 
 These defaults are only placeholders. Change them in `idf.py menuconfig` to match your board wiring.
 
+## STM32 Wiring
+
+With the current `stm_adc_pressure` defaults, connect the boards like this:
+
+| ESP32-S3 | STM32F407 | Signal |
+| --- | --- | --- |
+| `GPIO10` | `PB5` | `RDY` |
+| `GPIO7` | `PB12` | `CS/NSS` |
+| `GPIO4` | `PB13` | `SCK` |
+| `GPIO5` | `PB14` | `MISO` |
+| `GPIO6` | `PB15` | `MOSI` |
+| `GND` | `GND` | common ground |
+
+Notes:
+
+- The ESP32 acts as SPI master and the STM32 acts as SPI slave.
+- Both sides must share `GND` and use `3.3V` logic levels.
+
 ## Build
 
 ```bash
