@@ -71,8 +71,8 @@
 - 分辨率：`12 bit`
 - 采样时间：`56 cycles`
 - 触发源：`TIM2 TRGO`
-- 触发周期：`1 ms`
-- 每路有效采样频率：`1000 Hz`
+- 触发周期：`10 ms`
+- 每路有效采样频率：`100 Hz`
 
 ### 3.2 DMA / 包节拍
 
@@ -87,8 +87,8 @@
 
 - 总样本数：`1536`
 - 每通道样本数：`256`
-- 包产生周期：`256 ms`
-- 包频率：约 `3.91 包/秒`
+- 包产生周期：`2560 ms`
+- 包频率：约 `0.39 包/秒`
 
 ## 4. SPI 参数
 
@@ -171,7 +171,7 @@ typedef struct __attribute__((packed))
 | `6` | `2` | `header_bytes` | 固定 `40` |
 | `8` | `4` | `sequence` | 包序号，随每次半包/满包处理递增 |
 | `12` | `4` | `tick_ms` | STM32 `osKernelGetTickCount()` 时间戳，单位 `ms` |
-| `16` | `4` | `sample_rate_hz` | 当前固定 `1000` |
+| `16` | `4` | `sample_rate_hz` | 当前固定 `100` |
 | `20` | `2` | `channel_count` | 当前固定 `6` |
 | `22` | `2` | `samples_per_channel` | 当前固定 `256` |
 | `24` | `2` | `bits_per_sample` | 当前固定 `12` |
@@ -259,12 +259,12 @@ ESP32 校验步骤应为：
 当前链路缓存能力由 STM32 侧包池决定：
 
 - 包池深度：`4`
-- 每包覆盖时间：`256 ms`
+- 每包覆盖时间：`2560 ms`
 - 理论连续缓存窗口：约 `1.024 s`
 
 这意味着：
 
-- ESP32 端平均处理速度必须高于约 `3.91 包/秒`
+- ESP32 端平均处理速度必须高于约 `0.39 包/秒`
 - 如果持续约 `1 s` 都未能取走数据，STM32 侧就可能开始丢包
 
 另外，STM32 侧单次 SPI 事务等待超时为：
@@ -278,7 +278,7 @@ ESP32 校验步骤应为：
 当前链路的典型数据量级：
 
 - 单包：`3112 bytes`
-- 包频率：约 `3.91 包/秒`
+- 包频率：约 `0.39 包/秒`
 - 平均链路负载：约 `12.2 kB/s`
 
 换算成 SPI 线速需求：
@@ -395,8 +395,8 @@ STM32 上电后应看到类似日志：
 
 ```text
 [LINK] SPI2 slave PB12/PB13/PB14/PB15 RDY=PB5
-[LINK] pkt=3112B wire=3116B payload=3072B 1000Hz/ch
-[ADC] scan dma armed, trigger=TIM2 1000Hz, buffer=3072 samples
+[LINK] pkt=3112B wire=3116B payload=3072B 100Hz/ch
+[ADC] scan dma armed, trigger=TIM2 100Hz, buffer=3072 samples
 ```
 
 ### 13.2 示波器/逻辑分析仪建议观察

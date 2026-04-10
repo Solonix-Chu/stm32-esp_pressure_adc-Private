@@ -1,0 +1,23 @@
+{
+  "input_bin": "/home/csc/Develop/Pilot/hardware/stm32_esp32-pressure-adc/stm32-hardware/adc_raw_00007.bin",
+  "metadata": "/home/csc/Develop/Pilot/hardware/stm32_esp32-pressure-adc/stm32-hardware/adc_raw_00007.json",
+  "output_dir": "/home/csc/Develop/Pilot/hardware/stm32_esp32-pressure-adc/stm32-hardware/adc_raw_00007_decoded",
+  "packet_count": 44,
+  "valid_packets": 44,
+  "invalid_packets": 0,
+  "trailing_bytes": 0,
+  "frame_rows": 11264,
+  "duration_s": 112.64,
+  "sequence_gap_events": 1,
+  "missing_packets_by_sequence": 34,
+  "stm32_drop_first": 0,
+  "stm32_drop_last": 0,
+  "stm32_drop_delta": 0,
+  "flags": {
+    "full": 22,
+    "half": 22
+  },
+  "csv_file": "/home/csc/Develop/Pilot/hardware/stm32_esp32-pressure-adc/stm32-hardware/adc_raw_00007_decoded/adc_raw_00007_samples.csv",
+  "svg_file": "/home/csc/Develop/Pilot/hardware/stm32_esp32-pressure-adc/stm32-hardware/adc_raw_00007_decoded/adc_raw_00007_waveform.svg",
+  "invalid_examples": []
+}

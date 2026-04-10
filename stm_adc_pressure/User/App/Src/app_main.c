@@ -38,7 +38,7 @@
 #define APP_DISPLAY_TASK_STACK_SIZE (512U * 4U)
 
 #define APP_ADC_REFERENCE_MV      3300U
-#define APP_ADC_CHANNEL_SAMPLE_RATE_HZ 1000U
+#define APP_ADC_CHANNEL_SAMPLE_RATE_HZ 100U
 #define APP_PLOT_MV_PER_GRID      500U
 #define APP_PLOT_MV_FULL_SCALE    (APP_PLOT_MV_PER_GRID * 7U)
 #define APP_PLOT_SECONDS_PER_GRID 2U
@@ -598,7 +598,8 @@ static void app_adc_task(void *argument)
     Error_Handler();
   }
 
-  DrvUartLog_Printf("[ADC] scan dma armed, trigger=TIM2 1000Hz, buffer=%u samples\r\n",
+  DrvUartLog_Printf("[ADC] scan dma armed, trigger=TIM2 %luHz, buffer=%u samples\r\n",
+                    (unsigned long)APP_ADC_CHANNEL_SAMPLE_RATE_HZ,
                     (unsigned int)APP_ADC_DMA_BUFFER_SIZE);
 
   for (;;)
